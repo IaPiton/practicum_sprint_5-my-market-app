@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
+import ru.yandex.practicum.my_market_app.core.mapper.CartMapper;
+import ru.yandex.practicum.my_market_app.core.model.CartItemDto;
 import ru.yandex.practicum.my_market_app.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
@@ -12,6 +14,7 @@ import ru.yandex.practicum.my_market_app.persistence.repository.CartItemReposito
 import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -19,6 +22,7 @@ import java.util.Map;
 public class CartServiceImpl implements CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final CartMapper cartMapper;
 
     @Override
     @Transactional
@@ -60,6 +64,24 @@ public class CartServiceImpl implements CartService {
                     "Неизвестное действие: " + action + ". Поддерживаемые действия: PLUS, MINUS, DELETE"
             );
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CartItemDto> getCartItemsWithDetails(Long cartId) {
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cartId);
+
+        return cartItems.stream()
+                .map(cartMapper::convertToCartItemDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Long getCartTotal(Long cartId) {
+        return cartItemRepository.findByCartId(cartId).stream()
+                .mapToLong(cartItem -> cartItem.getItem().getPrice() * cartItem.getQuantity())
+                .sum();
     }
 
     private void handlePlusAction(Cart cart, Item item, CartItem cartItem) {
