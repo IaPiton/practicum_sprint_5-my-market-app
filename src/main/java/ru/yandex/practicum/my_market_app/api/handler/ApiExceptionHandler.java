@@ -3,6 +3,7 @@ package ru.yandex.practicum.my_market_app.api.handler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.yandex.practicum.my_market_app.api.model.ErrorResponse;
@@ -24,6 +25,16 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ItemNotFoundException.class)
     public ResponseEntity<ErrorResponse> itemNotFoundException(ItemNotFoundException e) {
         log.error("❌ Ошибка: товар не найден");
+        logError(e);
+        log.error("📚 Стек ошибки:", e);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("BAD_REQUEST", e.getMessage()));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> itemNotFoundException(MissingServletRequestParameterException e) {
+        log.error("❌ Ошибка: входящих параметров");
         logError(e);
         log.error("📚 Стек ошибки:", e);
 

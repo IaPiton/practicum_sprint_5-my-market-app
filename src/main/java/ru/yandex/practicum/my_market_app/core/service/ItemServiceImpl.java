@@ -30,17 +30,11 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public ItemsPageData getItemsPage(String search, String sort, int pageNumber, int pageSize) {
         Long cartId = cartService.getCurrentCartId();
-
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
-
         Pageable pageable = pageableBuilder.createPageable(pageNumber, pageSize, sort);
-
         Page<Item> itemPage = getItemsPageWithSearch(search, pageable);
-
         List<ItemDto> itemsWithCount = itemMapper.toDtoList(itemPage.getContent(), cartItemCounts);
-
         List<List<ItemDto>> itemsGrid = gridBuilder.buildGrid(itemsWithCount, 3);
-
         PagingInfo pagingInfo = new PagingInfo(
                 pageNumber,
                 pageSize,
@@ -67,9 +61,7 @@ public class ItemServiceImpl implements ItemService {
     public String updateCartItemAndGetRedirectUrl(Long itemId, String search, String sort,
                                                   int pageNumber, int pageSize, String action) {
         Long cartId = cartService.getCurrentCartId();
-
         Item item = getItemEntityById(itemId);
-
         cartService.updateItemCount(cartId, item, action);
 
         return buildRedirectUrl(search, sort, pageNumber, pageSize);
@@ -79,11 +71,8 @@ public class ItemServiceImpl implements ItemService {
     @Transactional
     public ItemDto updateItemCountAndGetItem(Long itemId, String action) {
         Long cartId = cartService.getCurrentCartId();
-
         Item item = getItemEntityById(itemId);
-
         cartService.updateItemCount(cartId, item, action);
-
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
         int updatedCount = cartItemCounts.getOrDefault(itemId, 0);
 

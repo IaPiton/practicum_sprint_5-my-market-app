@@ -52,10 +52,8 @@ public class CartServiceImpl implements CartService {
         Cart cart = cartRepository.findById(cartId)
                 .orElseThrow(() -> new CartNotFoundException("Корзина не найдена: " + cartId));
 
-
         CartItem cartItem = cartItemRepository.findByCartIdAndItemId(cartId, item.getId())
                 .orElse(null);
-
 
          switch (action.toUpperCase()) {
             case "PLUS" -> handlePlusAction(cart, item, cartItem);

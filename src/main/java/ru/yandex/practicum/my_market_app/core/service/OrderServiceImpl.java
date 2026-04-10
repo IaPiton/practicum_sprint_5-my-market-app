@@ -10,7 +10,6 @@ import ru.yandex.practicum.my_market_app.persistence.entity.Order;
 import ru.yandex.practicum.my_market_app.persistence.entity.OrderItem;
 import ru.yandex.practicum.my_market_app.persistence.model.OrderStatus;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartItemRepository;
-import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
 import ru.yandex.practicum.my_market_app.persistence.repository.OrderRepository;
 
 import java.time.LocalDateTime;
@@ -21,7 +20,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
-    private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final OrderMapper orderMapper;
 
@@ -60,11 +58,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         order.setTotalSum(totalSum);
-
         Order savedOrder = orderRepository.save(order);
-
         cartItemRepository.deleteByCartId(cartId);
-
         return savedOrder;
     }
 
