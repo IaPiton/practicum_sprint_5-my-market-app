@@ -1,30 +1,38 @@
 package ru.yandex.practicum.my_market_app.controller;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import ru.yandex.practicum.my_market_app.core.model.ItemsPageData;
+import ru.yandex.practicum.my_market_app.core.service.ItemService;
 
-import java.util.List;
 
 @Controller
+@RequiredArgsConstructor
 public class ItemController {
+    private final ItemService itemService;
+
     @GetMapping({"/", "/items"})
-    public String getItems(Model model) {
-        // Временные тестовые данные
-        model.addAttribute("items", List.of());
-        model.addAttribute("search", "");
-        model.addAttribute("sort", "NO");
-        model.addAttribute("paging", new PagingInfo(1, 5, false, false));
+    public String getItems(
+            @RequestParam(required = false, defaultValue = "") String search,
+            @RequestParam(required = false, defaultValue = "NO") String sort,
+            @RequestParam(required = false, defaultValue = "1") int pageNumber,
+            @RequestParam(required = false, defaultValue = "5") int pageSize,
+            Model model
+    ) {
+        ItemsPageData pageData = itemService.getItemsPage(
+                search, sort, pageNumber, pageSize
+        );
+
+        model.addAttribute("items", pageData.getItemsGrid());
+        model.addAttribute("search", pageData.getSearch());
+        model.addAttribute("sort", pageData.getSort());
+        model.addAttribute("paging", pageData.getPaging());
 
         return "items";
     }
 
-    public record PagingInfo(
-            int pageNumber,
-            int pageSize,
-            boolean hasPrevious,
-            boolean hasNext
-    ) {}
 }
