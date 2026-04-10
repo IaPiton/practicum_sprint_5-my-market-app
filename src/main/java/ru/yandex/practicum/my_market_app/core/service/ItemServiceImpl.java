@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_app.core.mapper.ItemMapper;
 import ru.yandex.practicum.my_market_app.core.mapper.ItemsGridBuilder;
 import ru.yandex.practicum.my_market_app.core.mapper.PageableBuilder;
@@ -49,6 +50,14 @@ public class ItemServiceImpl implements ItemService {
         );
 
         return new ItemsPageData(itemsGrid, search, sort, pagingInfo);
+    }
+
+    @Override
+    public ItemDto getItemById(Long id) {
+        Long cartId = cartService.getCurrentCartId();
+        Item item = itemRepository.findById(id).orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
+        Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
+        return itemMapper.toDto(item, cartItemCounts.getOrDefault(item.getId(), 0));
     }
 
 

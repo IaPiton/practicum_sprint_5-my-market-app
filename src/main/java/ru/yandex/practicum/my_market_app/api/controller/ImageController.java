@@ -1,4 +1,4 @@
-package ru.yandex.practicum.my_market_app.controller;
+package ru.yandex.practicum.my_market_app.api.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ClassPathResource;

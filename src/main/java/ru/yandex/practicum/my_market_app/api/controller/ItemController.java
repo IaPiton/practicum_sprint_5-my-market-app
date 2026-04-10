@@ -1,13 +1,15 @@
-package ru.yandex.practicum.my_market_app.controller;
+package ru.yandex.practicum.my_market_app.api.controller;
 
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import ru.yandex.practicum.my_market_app.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_app.core.service.ItemService;
+import ru.yandex.practicum.my_market_app.persistence.model.ItemDto;
 
 
 @Controller
@@ -33,6 +35,16 @@ public class ItemController {
         model.addAttribute("paging", pageData.getPaging());
 
         return "items";
+    }
+
+    @GetMapping("/items/{id}")
+    public String getItem(
+            @PathVariable Long id,
+            Model model
+    ) {
+        ItemDto item = itemService.getItemById(id);
+        model.addAttribute("item", item);
+        return "item";
     }
 
 }
