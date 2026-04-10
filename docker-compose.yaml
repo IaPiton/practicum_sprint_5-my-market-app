@@ -20,29 +20,29 @@ services:
       retries: 5
       start_period: 10s
 
- # blog-app:
- #   container_name: blog-back-app
- #   build:
- #     context: .
- #     dockerfile: Dockerfile
- #   env_file:
- #     - .env
- #   environment:
- #     - POSTGRES_HOST=db-blog
- #     - POSTGRES_PORT=5432
- #   ports:
- #     - "8080:8080"
- #   depends_on:
- #     db-blog:
- #       condition: service_healthy
- #   networks:
-#      - blog-network
+  market-app:
+    container_name: market-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=db-market
+      - POSTGRES_PORT=5432
+    ports:
+      - "8080:8080"
+    depends_on:
+      db-market:
+        condition: service_healthy
+    networks:
+      - market-network
 
 networks:
   market-network:
     driver: bridge
     name: market-network
 
-#volumes:
-#  postgres_data:
- #   name: postgres_market_data
+volumes:
+  postgres_data:
+    name: postgres_market_data
