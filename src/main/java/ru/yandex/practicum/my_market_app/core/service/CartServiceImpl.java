@@ -13,6 +13,7 @@ import ru.yandex.practicum.my_market_app.persistence.entity.Item;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartItemRepository;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,7 @@ public class CartServiceImpl implements CartService {
         CartItem cartItem = cartItemRepository.findByCartIdAndItemId(cartId, item.getId())
                 .orElse(null);
 
+
          switch (action.toUpperCase()) {
             case "PLUS" -> handlePlusAction(cart, item, cartItem);
             case "MINUS" -> handleMinusAction(cartItem);
@@ -73,6 +75,7 @@ public class CartServiceImpl implements CartService {
 
         return cartItems.stream()
                 .map(cartMapper::convertToCartItemDto)
+                .sorted(Comparator.comparing(CartItemDto::title).reversed())
                 .toList();
     }
 

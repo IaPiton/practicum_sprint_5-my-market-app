@@ -79,17 +79,19 @@ public class ItemServiceImpl implements ItemService {
     @Transactional
     public ItemDto updateItemCountAndGetItem(Long itemId, String action) {
         Long cartId = cartService.getCurrentCartId();
+
         Item item = getItemEntityById(itemId);
 
         cartService.updateItemCount(cartId, item, action);
 
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
-        int updatedCount = cartItemCounts.getOrDefault(item.getId(), 0);
+        int updatedCount = cartItemCounts.getOrDefault(itemId, 0);
 
         return itemMapper.toDto(item, updatedCount);
     }
 
-    private Item getItemEntityById(Long itemId) {
+    @Override
+    public Item getItemEntityById(Long itemId) {
         return itemRepository.findById(itemId)
                 .orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
     }
