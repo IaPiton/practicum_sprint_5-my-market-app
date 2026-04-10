@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.view.RedirectView;
 import ru.yandex.practicum.my_market_app.core.model.OrderDto;
 import ru.yandex.practicum.my_market_app.core.service.CartService;
 import ru.yandex.practicum.my_market_app.core.service.OrderService;

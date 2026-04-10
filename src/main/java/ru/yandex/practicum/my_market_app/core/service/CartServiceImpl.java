@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
-import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_app.core.mapper.CartMapper;
 import ru.yandex.practicum.my_market_app.core.model.CartItemDto;
 import ru.yandex.practicum.my_market_app.persistence.entity.Cart;

@@ -5,7 +5,6 @@ import org.springframework.stereotype.Service;
 import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_app.core.mapper.OrderMapper;
 import ru.yandex.practicum.my_market_app.core.model.OrderDto;
-import ru.yandex.practicum.my_market_app.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_app.persistence.entity.Order;
 import ru.yandex.practicum.my_market_app.persistence.entity.OrderItem;

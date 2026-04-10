@@ -31,12 +31,6 @@ public class OrderMapper {
                 .build();
     }
 
-    public List<OrderDto> convertToOrderDtoList(List<Order> orders) {
-        return orders.stream()
-                .map(this::convertToOrderDto)
-                .toList();
-    }
-
     public OrderItemDto convertToOrderItemDto(OrderItem orderItem) {
         if (orderItem == null) {
             return null;
