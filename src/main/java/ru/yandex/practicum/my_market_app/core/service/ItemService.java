@@ -10,4 +10,6 @@ public interface ItemService {
 
     String updateCartItemAndGetRedirectUrl(Long id, String search, String sort,
                                            int pageNumber, int pageSize, String action);
+
+    ItemDto updateItemCountAndGetItem(Long id, String action);
 }

@@ -62,7 +62,6 @@ public class CartServiceImpl implements CartService {
         }
     }
 
-
     private void handlePlusAction(Cart cart, Item item, CartItem cartItem) {
         if (cartItem == null) {
             CartItem newCartItem = new CartItem();
@@ -76,7 +75,6 @@ public class CartServiceImpl implements CartService {
         }
     }
 
-
     private void handleMinusAction(CartItem cartItem) {
         if (cartItem == null) {
             return;
@@ -89,7 +87,6 @@ public class CartServiceImpl implements CartService {
             cartItemRepository.delete(cartItem);
         }
     }
-
 
     private void handleDeleteAction(CartItem cartItem) {
         if (cartItem != null) {

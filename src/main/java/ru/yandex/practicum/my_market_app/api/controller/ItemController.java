@@ -57,5 +57,18 @@ public class ItemController {
         return itemService.updateCartItemAndGetRedirectUrl(id, search, sort, pageNumber, pageSize, action);
     }
 
+    @PostMapping("/items/{id}")
+    public String updateCartItemFromItemPage(
+            @PathVariable Long id,
+            @RequestParam String action,
+            Model model) {
+
+        ItemDto updatedItem = itemService.updateItemCountAndGetItem(id, action);
+
+        model.addAttribute("item", updatedItem);
+
+        return "item";
+    }
+
 
 }

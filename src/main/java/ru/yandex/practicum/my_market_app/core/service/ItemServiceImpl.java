@@ -54,11 +54,12 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
-    public ItemDto getItemById(Long id) {
+    public ItemDto getItemById(Long itemId) {
         Long cartId = cartService.getCurrentCartId();
-        Item item = itemRepository.findById(id).orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
+        Item item = getItemEntityById(itemId);
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
-        return itemMapper.toDto(item, cartItemCounts.getOrDefault(item.getId(), 0));
+        int updatedCount = cartItemCounts.getOrDefault(item.getId(), 0);
+        return itemMapper.toDto(item, updatedCount);
     }
 
     @Override
@@ -67,11 +68,30 @@ public class ItemServiceImpl implements ItemService {
                                                   int pageNumber, int pageSize, String action) {
         Long cartId = cartService.getCurrentCartId();
 
-        Item item = itemRepository.findById(itemId).orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
+        Item item = getItemEntityById(itemId);
 
         cartService.updateItemCount(cartId, item, action);
 
         return buildRedirectUrl(search, sort, pageNumber, pageSize);
+    }
+
+    @Override
+    @Transactional
+    public ItemDto updateItemCountAndGetItem(Long itemId, String action) {
+        Long cartId = cartService.getCurrentCartId();
+        Item item = getItemEntityById(itemId);
+
+        cartService.updateItemCount(cartId, item, action);
+
+        Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
+        int updatedCount = cartItemCounts.getOrDefault(item.getId(), 0);
+
+        return itemMapper.toDto(item, updatedCount);
+    }
+
+    private Item getItemEntityById(Long itemId) {
+        return itemRepository.findById(itemId)
+                .orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
     }
 
     private String buildRedirectUrl(String search, String sort, int pageNumber, int pageSize) {
