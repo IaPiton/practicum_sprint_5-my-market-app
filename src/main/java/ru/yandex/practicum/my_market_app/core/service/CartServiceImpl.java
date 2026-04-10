@@ -3,7 +3,11 @@ package ru.yandex.practicum.my_market_app.core.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
+import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_app.persistence.entity.Cart;
+import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
+import ru.yandex.practicum.my_market_app.persistence.entity.Item;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartItemRepository;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
 
@@ -38,6 +42,60 @@ public class CartServiceImpl implements CartService {
         return counts;
     }
 
+    @Override
+    @Transactional
+    public void updateItemCount(Long cartId, Item item, String action) {
+        Cart cart = cartRepository.findById(cartId)
+                .orElseThrow(() -> new CartNotFoundException("Корзина не найдена: " + cartId));
+
+
+        CartItem cartItem = cartItemRepository.findByCartIdAndItemId(cartId, item.getId())
+                .orElse(null);
+
+         switch (action.toUpperCase()) {
+            case "PLUS" -> handlePlusAction(cart, item, cartItem);
+            case "MINUS" -> handleMinusAction(cartItem);
+            case "DELETE" -> handleDeleteAction(cartItem);
+            default -> throw new IllegalArgumentException(
+                    "Неизвестное действие: " + action + ". Поддерживаемые действия: PLUS, MINUS, DELETE"
+            );
+        }
+    }
+
+
+    private void handlePlusAction(Cart cart, Item item, CartItem cartItem) {
+        if (cartItem == null) {
+            CartItem newCartItem = new CartItem();
+            newCartItem.setCart(cart);
+            newCartItem.setItem(item);
+            newCartItem.setQuantity(1);
+            cartItemRepository.save(newCartItem);
+        } else {
+            cartItem.setQuantity(cartItem.getQuantity() + 1);
+            cartItemRepository.save(cartItem);
+        }
+    }
+
+
+    private void handleMinusAction(CartItem cartItem) {
+        if (cartItem == null) {
+            return;
+        }
+
+        if (cartItem.getQuantity() > 1) {
+            cartItem.setQuantity(cartItem.getQuantity() - 1);
+            cartItemRepository.save(cartItem);
+        } else {
+            cartItemRepository.delete(cartItem);
+        }
+    }
+
+
+    private void handleDeleteAction(CartItem cartItem) {
+        if (cartItem != null) {
+            cartItemRepository.delete(cartItem);
+        }
+    }
 
     private String getCurrentSessionId() {
         return "default-session";

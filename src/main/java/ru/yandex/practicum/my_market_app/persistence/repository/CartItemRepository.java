@@ -5,9 +5,12 @@ import org.springframework.stereotype.Repository;
 import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
 
 import java.util.List;
+import java.util.Optional;
 
 
 @Repository
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     List<CartItem> findByCartId(Long cartId);
+
+    Optional<CartItem> findByCartIdAndItemId(Long cartId, Long itemId);
 }

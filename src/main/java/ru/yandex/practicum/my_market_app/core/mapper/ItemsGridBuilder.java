@@ -9,8 +9,6 @@ import java.util.List;
 @Component
 public class ItemsGridBuilder {
 
-    private static final int DEFAULT_CHUNK_SIZE = 3;
-
     public List<List<ItemDto>> buildGrid(List<ItemDto> items, int chunkSize) {
         List<List<ItemDto>> grid = new ArrayList<>();
 

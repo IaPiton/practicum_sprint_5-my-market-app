@@ -1,5 +1,6 @@
 package ru.yandex.practicum.my_market_app.core.service;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -58,6 +59,33 @@ public class ItemServiceImpl implements ItemService {
         Item item = itemRepository.findById(id).orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
         return itemMapper.toDto(item, cartItemCounts.getOrDefault(item.getId(), 0));
+    }
+
+    @Override
+    @Transactional
+    public String updateCartItemAndGetRedirectUrl(Long itemId, String search, String sort,
+                                                  int pageNumber, int pageSize, String action) {
+        Long cartId = cartService.getCurrentCartId();
+
+        Item item = itemRepository.findById(itemId).orElseThrow(() -> new ItemNotFoundException("Товар не найден"));
+
+        cartService.updateItemCount(cartId, item, action);
+
+        return buildRedirectUrl(search, sort, pageNumber, pageSize);
+    }
+
+    private String buildRedirectUrl(String search, String sort, int pageNumber, int pageSize) {
+        StringBuilder redirectUrl = new StringBuilder("/items?");
+
+        if (search != null && !search.isEmpty()) {
+            redirectUrl.append("search=").append(search).append("&");
+        }
+
+        redirectUrl.append("sort=").append(sort).append("&");
+        redirectUrl.append("pageNumber=").append(pageNumber).append("&");
+        redirectUrl.append("pageSize=").append(pageSize);
+
+        return "redirect:" + redirectUrl;
     }
 
 

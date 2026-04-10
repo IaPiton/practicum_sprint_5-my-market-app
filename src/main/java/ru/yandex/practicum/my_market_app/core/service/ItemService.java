@@ -7,4 +7,7 @@ public interface ItemService {
     ItemsPageData getItemsPage(String search, String sort, int pageNumber, int pageSize);
 
     ItemDto getItemById(Long id);
+
+    String updateCartItemAndGetRedirectUrl(Long id, String search, String sort,
+                                           int pageNumber, int pageSize, String action);
 }
