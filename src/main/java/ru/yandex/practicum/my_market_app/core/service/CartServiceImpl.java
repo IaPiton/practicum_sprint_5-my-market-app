@@ -26,8 +26,7 @@ public class CartServiceImpl implements CartService {
 
     @Override
     @Transactional
-    public Long getCurrentCartId() {
-        String sessionId = getCurrentSessionId();
+    public Long getCurrentCartId(String sessionId) {
         Cart cart = cartRepository.findBySessionId(sessionId)
                 .orElseGet(() -> {
                     Cart newCart = new Cart();
@@ -116,7 +115,4 @@ public class CartServiceImpl implements CartService {
         }
     }
 
-    private String getCurrentSessionId() {
-        return "default-session";
-    }
 }

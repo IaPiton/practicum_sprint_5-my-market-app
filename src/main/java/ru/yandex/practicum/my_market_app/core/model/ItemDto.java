@@ -1,4 +1,4 @@
-package ru.yandex.practicum.my_market_app.persistence.model;
+package ru.yandex.practicum.my_market_app.core.model;
 
 import lombok.Builder;
 
@@ -15,9 +15,5 @@ public record ItemDto(Long id, String title, String description, String imgPath,
                     .price(0L)
                     .count(0)
                     .build();
-      }
-
-      public Long id() {
-            return id;
       }
 }

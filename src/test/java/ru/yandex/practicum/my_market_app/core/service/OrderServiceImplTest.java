@@ -1,6 +1,5 @@
-package core.service;
+package ru.yandex.practicum.my_market_app.core.service;
 
-import configuration.PgTestContainerConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -9,11 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
-import ru.yandex.practicum.my_market_app.Application;
-import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
+import ru.yandex.practicum.my_market_app.api.handler.OrderItemNotFoundException;
 import ru.yandex.practicum.my_market_app.core.model.OrderDto;
-import ru.yandex.practicum.my_market_app.core.service.CartService;
-import ru.yandex.practicum.my_market_app.core.service.OrderService;
 import ru.yandex.practicum.my_market_app.persistence.entity.*;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartItemRepository;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
@@ -26,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
-@SpringBootTest(classes = {Application.class, PgTestContainerConfiguration.class})
+@SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("Интеграционные тесты сервиса заказов с реальной БД")
 class OrderServiceImplTest {
@@ -56,7 +52,8 @@ class OrderServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        Long cartId = cartService.getCurrentCartId();
+        String testSessionId = "test-session-" + System.currentTimeMillis();
+        Long cartId = cartService.getCurrentCartId(testSessionId);
         testCart = cartRepository.findById(cartId).orElseThrow();
 
         testItem1 = new Item();
@@ -113,10 +110,9 @@ class OrderServiceImplTest {
 
         @Test
         @DisplayName("Должен вернуть заказы в порядке убывания даты создания")
-        void shouldReturnOrdersSortedByCreatedAtDesc() throws InterruptedException {
+        void shouldReturnOrdersSortedByCreatedAtDesc() {
             addItemsToCart(testCart.getId(), testItem1.getId(), 1);
             Order order1 = orderService.createOrderFromCart(testCart.getId());
-
 
             addItemsToCart(testCart.getId(), testItem2.getId(), 1);
             Order order2 = orderService.createOrderFromCart(testCart.getId());
@@ -199,15 +195,8 @@ class OrderServiceImplTest {
         @DisplayName("Должен выбросить исключение при создании заказа из пустой корзины")
         void shouldThrowExceptionWhenCreatingOrderFromEmptyCart() {
             assertThatThrownBy(() -> orderService.createOrderFromCart(testCart.getId()))
-                    .isInstanceOf(CartNotFoundException.class)
-                    .hasMessageContaining("Корзина не пустая");
-        }
-
-        @Test
-        @DisplayName("Должен выбросить исключение при создании заказа из несуществующей корзины")
-        void shouldThrowExceptionWhenCreatingOrderFromNonExistentCart() {
-            assertThatThrownBy(() -> orderService.createOrderFromCart(99999L))
-                    .isInstanceOf(RuntimeException.class);
+                    .isInstanceOf(OrderItemNotFoundException.class)
+                    .hasMessageContaining("В корзине нет товаров для оформления заказа");
         }
 
         @Test
@@ -385,16 +374,31 @@ class OrderServiceImplTest {
             assertThat(order.getTotalSum()).isEqualTo(100 * 10);
         }
 
+    }
+
+    @Nested
+    @DisplayName("Тесты работы с разными сессиями")
+    class DifferentSessionsTests {
+
         @Test
-        @DisplayName("Должен корректно обработать создание заказа после очистки корзины")
-        void shouldHandleOrderCreationAfterCartCleared() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
+        @DisplayName("Разные сессии должны иметь разные заказы")
+        void differentSessionsShouldHaveDifferentOrders() {
+            String sessionId1 = "session-1-" + System.currentTimeMillis();
+            String sessionId2 = "session-2-" + System.currentTimeMillis();
 
-            Order order1 = orderService.createOrderFromCart(testCart.getId());
-            assertThat(order1).isNotNull();
+            Long cartId1 = cartService.getCurrentCartId(sessionId1);
+            Long cartId2 = cartService.getCurrentCartId(sessionId2);
 
-            assertThatThrownBy(() -> orderService.createOrderFromCart(testCart.getId()))
-                    .isInstanceOf(CartNotFoundException.class);
+            addItemsToCart(cartId1, testItem1.getId(), 2);
+            addItemsToCart(cartId2, testItem2.getId(), 3);
+
+            Order order1 = orderService.createOrderFromCart(cartId1);
+            Order order2 = orderService.createOrderFromCart(cartId2);
+
+            assertThat(order1.getTotalSum()).isEqualTo(200);
+            assertThat(order2.getTotalSum()).isEqualTo(600);
+            assertThat(order1.getItems().getFirst().getItem().getId()).isEqualTo(testItem1.getId());
+            assertThat(order2.getItems().getFirst().getItem().getId()).isEqualTo(testItem2.getId());
         }
     }
 

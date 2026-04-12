@@ -1,38 +1,29 @@
-package api.controller;
+package ru.yandex.practicum.my_market_app.api.controller;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-
-
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import ru.yandex.practicum.my_market_app.Application;
-import ru.yandex.practicum.my_market_app.api.controller.CartController;
-import ru.yandex.practicum.my_market_app.api.handler.ApiExceptionHandler;
 import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_app.core.model.CartItemDto;
 import ru.yandex.practicum.my_market_app.core.service.CartService;
 import ru.yandex.practicum.my_market_app.core.service.ItemService;
-
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-
 @WebMvcTest(controllers = CartController.class)
-@ContextConfiguration(classes = {Application.class, ApiExceptionHandler.class})
 @DisplayName("Тесты контроллера корзины")
 class CartControllerTest {
 
@@ -44,6 +35,7 @@ class CartControllerTest {
 
     @MockitoBean
     private ItemService itemService;
+
 
     @Test
     @DisplayName("GET /cart/items - должен вернуть страницу корзины с товарами")
@@ -71,11 +63,17 @@ class CartControllerTest {
         );
         long total = 350L;
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(items);
         when(cartService.getCartTotal(cartId)).thenReturn(total);
 
-        mockMvc.perform(get("/cart/items"))
+
+
+        mockMvc.perform(get("/cart/items")
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"))
                 .andExpect(model().attributeExists("items"))
@@ -83,7 +81,7 @@ class CartControllerTest {
                 .andExpect(model().attribute("items", items))
                 .andExpect(model().attribute("total", total));
 
-        verify(cartService).getCurrentCartId();
+        verify(cartService).getCurrentCartId(actualSessionId);
         verify(cartService).getCartItemsWithDetails(cartId);
         verify(cartService).getCartTotal(cartId);
     }
@@ -95,11 +93,15 @@ class CartControllerTest {
         List<CartItemDto> emptyItems = Collections.emptyList();
         long total = 0L;
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(emptyItems);
         when(cartService.getCartTotal(cartId)).thenReturn(total);
 
-        mockMvc.perform(get("/cart/items"))
+        mockMvc.perform(get("/cart/items")
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"))
                 .andExpect(model().attribute("items", emptyItems))
@@ -121,7 +123,7 @@ class CartControllerTest {
         item.setTitle("Тестовый товар");
         item.setPrice(100L);
 
-        List<CartItemDto> updatedItems =List.of(
+        List<CartItemDto> updatedItems = List.of(
                 CartItemDto.builder()
                         .id(1L)
                         .title("Тестовый товар")
@@ -132,15 +134,21 @@ class CartControllerTest {
         );
         long total = 300L;
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(itemService.getItemEntityById(itemId)).thenReturn(item);
         doNothing().when(cartService).updateItemCount(eq(cartId), eq(item), eq(action));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(updatedItems);
         when(cartService.getCartTotal(cartId)).thenReturn(total);
 
+
+
         mockMvc.perform(post("/cart/items")
                         .param("id", String.valueOf(itemId))
-                        .param("action", action))
+                        .param("action", action)
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"))
                 .andExpect(model().attributeExists("items"))
@@ -148,7 +156,7 @@ class CartControllerTest {
                 .andExpect(model().attribute("items", updatedItems))
                 .andExpect(model().attribute("total", total));
 
-        verify(cartService).getCurrentCartId();
+        verify(cartService).getCurrentCartId(actualSessionId);
         verify(itemService).getItemEntityById(itemId);
         verify(cartService).updateItemCount(cartId, item, action);
         verify(cartService).getCartItemsWithDetails(cartId);
@@ -178,7 +186,10 @@ class CartControllerTest {
         );
         long total = 100L;
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(itemService.getItemEntityById(itemId)).thenReturn(item);
         doNothing().when(cartService).updateItemCount(eq(cartId), eq(item), eq(action));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(updatedItems);
@@ -186,7 +197,8 @@ class CartControllerTest {
 
         mockMvc.perform(post("/cart/items")
                         .param("id", String.valueOf(itemId))
-                        .param("action", action))
+                        .param("action", action)
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"))
                 .andExpect(model().attribute("items", updatedItems))
@@ -210,7 +222,10 @@ class CartControllerTest {
         List<CartItemDto> updatedItems = Collections.emptyList();
         long total = 0L;
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(itemService.getItemEntityById(itemId)).thenReturn(item);
         doNothing().when(cartService).updateItemCount(eq(cartId), eq(item), eq(action));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(updatedItems);
@@ -218,7 +233,8 @@ class CartControllerTest {
 
         mockMvc.perform(post("/cart/items")
                         .param("id", String.valueOf(itemId))
-                        .param("action", action))
+                        .param("action", action)
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"))
                 .andExpect(model().attribute("items", updatedItems))
@@ -233,16 +249,20 @@ class CartControllerTest {
         Long itemId = 1L;
         String action = "PLUS";
 
-        when(cartService.getCurrentCartId()).thenThrow(new CartNotFoundException("Корзина не найдена"));
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenThrow(new CartNotFoundException("Корзина не найдена"));
 
         mockMvc.perform(post("/cart/items")
                         .param("id", String.valueOf(itemId))
-                        .param("action", action))
+                        .param("action", action)
+                        .session(session))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.message").value("Корзина не найдена"));
 
-        verify(cartService).getCurrentCartId();
+        verify(cartService).getCurrentCartId(actualSessionId);
         verify(itemService, never()).getItemEntityById(anyLong());
     }
 
@@ -253,13 +273,17 @@ class CartControllerTest {
         Long invalidItemId = 999L;
         String action = "PLUS";
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(itemService.getItemEntityById(invalidItemId))
                 .thenThrow(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден"));
 
         mockMvc.perform(post("/cart/items")
                         .param("id", String.valueOf(invalidItemId))
-                        .param("action", action))
+                        .param("action", action)
+                        .session(session))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.message").value("Товар с ID " + invalidItemId + " не найден"));
@@ -278,14 +302,18 @@ class CartControllerTest {
         Item item = new Item();
         item.setId(itemId);
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(itemService.getItemEntityById(itemId)).thenReturn(item);
         doThrow(new RuntimeException("Неизвестное действие: " + invalidAction))
                 .when(cartService).updateItemCount(eq(cartId), eq(item), eq(invalidAction));
 
         mockMvc.perform(post("/cart/items")
                         .param("id", String.valueOf(itemId))
-                        .param("action", invalidAction))
+                        .param("action", invalidAction)
+                        .session(session))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error").value("INTERNAL_SERVER"))
                 .andExpect(jsonPath("$.message").value("Произошла непредвиденная ошибка"));
@@ -312,7 +340,7 @@ class CartControllerTest {
     @Test
     @DisplayName("GET /cart/items - при ошибке сервиса должен вернуть INTERNAL_SERVER_ERROR")
     void getCartItems_WhenServiceThrowsException_ShouldReturnInternalServerError() throws Exception {
-        when(cartService.getCurrentCartId()).thenThrow(new RuntimeException("Ошибка подключения к базе данных"));
+        when(cartService.getCurrentCartId(anyString())).thenThrow(new RuntimeException("Ошибка подключения к базе данных"));
 
         mockMvc.perform(get("/cart/items"))
                 .andExpect(status().isInternalServerError())
@@ -331,11 +359,15 @@ class CartControllerTest {
         );
         long total = 850L;
 
-        when(cartService.getCurrentCartId()).thenReturn(cartId);
+        MockHttpSession session = new MockHttpSession();
+        String actualSessionId = session.getId();
+
+        when(cartService.getCurrentCartId(actualSessionId)).thenReturn(cartId);
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(items);
         when(cartService.getCartTotal(cartId)).thenReturn(total);
 
-        mockMvc.perform(get("/cart/items"))
+        mockMvc.perform(get("/cart/items")
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"))
                 .andExpect(model().attribute("items", items))

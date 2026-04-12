@@ -2,7 +2,7 @@ package ru.yandex.practicum.my_market_app.core.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
+import ru.yandex.practicum.my_market_app.api.handler.OrderItemNotFoundException;
 import ru.yandex.practicum.my_market_app.core.mapper.OrderMapper;
 import ru.yandex.practicum.my_market_app.core.model.OrderDto;
 import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
@@ -36,7 +36,7 @@ public class OrderServiceImpl implements OrderService {
         List<CartItem> cartItems = cartItemRepository.findByCartId(cartId);
 
         if (cartItems.isEmpty()) {
-            throw new CartNotFoundException("Корзина не пустая");
+            throw new OrderItemNotFoundException("В корзине нет товаров для оформления заказа");
         }
 
         Order order = new Order();

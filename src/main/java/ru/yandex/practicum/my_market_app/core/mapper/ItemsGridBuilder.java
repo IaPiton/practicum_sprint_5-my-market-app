@@ -1,7 +1,7 @@
 package ru.yandex.practicum.my_market_app.core.mapper;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.my_market_app.persistence.model.ItemDto;
+import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 
 import java.util.ArrayList;
 import java.util.List;

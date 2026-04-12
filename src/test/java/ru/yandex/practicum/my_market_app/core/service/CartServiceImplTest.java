@@ -1,6 +1,5 @@
-package core.service;
+package ru.yandex.practicum.my_market_app.core.service;
 
-import configuration.PgTestContainerConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -9,11 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
-import ru.yandex.practicum.my_market_app.Application;
 import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
-import ru.yandex.practicum.my_market_app.core.mapper.CartMapper;
 import ru.yandex.practicum.my_market_app.core.model.CartItemDto;
-import ru.yandex.practicum.my_market_app.core.service.CartService;
 import ru.yandex.practicum.my_market_app.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
@@ -23,12 +19,13 @@ import ru.yandex.practicum.my_market_app.persistence.repository.ItemRepository;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
-@SpringBootTest(classes = {Application.class, PgTestContainerConfiguration.class})
+@SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("Интеграционные тесты сервиса корзины с реальной БД")
 class CartServiceImplTest {
@@ -45,37 +42,36 @@ class CartServiceImplTest {
     @Autowired
     private ItemRepository itemRepository;
 
-    @Autowired
-    private CartMapper cartMapper;
-
     private Cart testCart;
     private Item testItem1;
     private Item testItem2;
     private Item testItem3;
+    private String testSessionId;
 
     @BeforeEach
     void setUp() {
+        testSessionId = "test-session-" + System.currentTimeMillis();
         testCart = new Cart();
-        testCart.setSessionId("test-session-" + System.currentTimeMillis());
+        testCart.setSessionId(testSessionId);
         testCart = cartRepository.save(testCart);
 
         testItem1 = new Item();
-        testItem1.setTitle("Тестовый товар 1");
-        testItem1.setDescription("Описание товара 1");
+        testItem1.setTitle("Товар A");
+        testItem1.setDescription("Описание товара A");
         testItem1.setImgPath("/images/test1.jpg");
         testItem1.setPrice(100L);
         testItem1 = itemRepository.save(testItem1);
 
         testItem2 = new Item();
-        testItem2.setTitle("Тестовый товар 2");
-        testItem2.setDescription("Описание товара 2");
+        testItem2.setTitle("Товар B");
+        testItem2.setDescription("Описание товара B");
         testItem2.setImgPath("/images/test2.jpg");
         testItem2.setPrice(200L);
         testItem2 = itemRepository.save(testItem2);
 
         testItem3 = new Item();
-        testItem3.setTitle("Тестовый товар 3");
-        testItem3.setDescription("Описание товара 3");
+        testItem3.setTitle("Товар C");
+        testItem3.setDescription("Описание товара C");
         testItem3.setImgPath("/images/test3.jpg");
         testItem3.setPrice(150L);
         testItem3 = itemRepository.save(testItem3);
@@ -88,24 +84,41 @@ class CartServiceImplTest {
         @Test
         @DisplayName("Должен создать новую корзину, если её не существует")
         void shouldCreateNewCartWhenNotExists() {
-            Long cartId = cartService.getCurrentCartId();
+            String newSessionId = "new-session-" + System.currentTimeMillis();
+            Long cartId = cartService.getCurrentCartId(newSessionId);
 
             assertThat(cartId).isNotNull();
-            Cart savedCart = cartRepository.findById(cartId).orElse(null);
-            assertThat(savedCart).isNotNull();
-            assertThat(savedCart.getSessionId()).isEqualTo("default-session");
+            Optional<Cart> savedCart = cartRepository.findById(cartId);
+            assertThat(savedCart).isPresent();
+            assertThat(savedCart.get().getSessionId()).isEqualTo(newSessionId);
         }
 
         @Test
-        @DisplayName("Должен создать корзину с уникальным sessionId")
-        void shouldCreateCartWithUniqueSessionId() {
-            cartService.getCurrentCartId();
+        @DisplayName("Должен вернуть существующую корзину по sessionId")
+        void shouldReturnExistingCartBySessionId() {
+            Long cartId = cartService.getCurrentCartId(testSessionId);
 
-            Long secondCartId = cartService.getCurrentCartId();
+            assertThat(cartId).isEqualTo(testCart.getId());
+        }
 
-            assertThat(secondCartId).isNotNull();
-            Cart cart = cartRepository.findById(secondCartId).orElse(null);
-            assertThat(cart).isNotNull();
+        @Test
+        @DisplayName("Должен создавать разные корзины для разных sessionId")
+        void shouldCreateDifferentCartsForDifferentSessions() {
+            String session1 = "session-1";
+            String session2 = "session-2";
+
+            Long cartId1 = cartService.getCurrentCartId(session1);
+            Long cartId2 = cartService.getCurrentCartId(session2);
+
+            assertThat(cartId1).isNotEqualTo(cartId2);
+
+            Optional<Cart> cart1 = cartRepository.findById(cartId1);
+            Optional<Cart> cart2 = cartRepository.findById(cartId2);
+
+            assertThat(cart1).isPresent();
+            assertThat(cart2).isPresent();
+            assertThat(cart1.get().getSessionId()).isEqualTo(session1);
+            assertThat(cart2.get().getSessionId()).isEqualTo(session2);
         }
     }
 
@@ -124,7 +137,7 @@ class CartServiceImplTest {
 
         @Test
         @DisplayName("Должен вернуть правильное количество товаров в корзине")
-        void shouldReturnCorrectItemCounts() throws Exception {
+        void shouldReturnCorrectItemCounts() {
             addItemToCart(testCart.getId(), testItem1.getId(), 2);
             addItemToCart(testCart.getId(), testItem2.getId(), 3);
 
@@ -167,9 +180,9 @@ class CartServiceImplTest {
 
             cartService.updateItemCount(testCart.getId(), testItem1, "PLUS");
 
-            CartItem cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId()).orElse(null);
-            assertThat(cartItem).isNotNull();
-            assertThat(cartItem.getQuantity()).isEqualTo(3);
+            Optional<CartItem> cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId());
+            assertThat(cartItem).isPresent();
+            assertThat(cartItem.get().getQuantity()).isEqualTo(3);
         }
 
         @Test
@@ -179,9 +192,9 @@ class CartServiceImplTest {
 
             cartService.updateItemCount(testCart.getId(), testItem1, "MINUS");
 
-            CartItem cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId()).orElse(null);
-            assertThat(cartItem).isNotNull();
-            assertThat(cartItem.getQuantity()).isEqualTo(2);
+            Optional<CartItem> cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId());
+            assertThat(cartItem).isPresent();
+            assertThat(cartItem.get().getQuantity()).isEqualTo(2);
         }
 
         @Test
@@ -191,8 +204,8 @@ class CartServiceImplTest {
 
             cartService.updateItemCount(testCart.getId(), testItem1, "MINUS");
 
-            CartItem cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId()).orElse(null);
-            assertThat(cartItem).isNull();
+            Optional<CartItem> cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId());
+            assertThat(cartItem).isNotPresent();
         }
 
         @Test
@@ -202,8 +215,17 @@ class CartServiceImplTest {
 
             cartService.updateItemCount(testCart.getId(), testItem1, "DELETE");
 
-            CartItem cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId()).orElse(null);
-            assertThat(cartItem).isNull();
+            Optional<CartItem> cartItem = cartItemRepository.findByCartIdAndItemId(testCart.getId(), testItem1.getId());
+            assertThat(cartItem).isNotPresent();
+        }
+
+        @Test
+        @DisplayName("Должен ничего не делать при MINUS для отсутствующего товара")
+        void shouldDoNothingWhenMinusOnNonExistentItem() {
+            cartService.updateItemCount(testCart.getId(), testItem1, "MINUS");
+
+            List<CartItem> cartItems = cartItemRepository.findByCartId(testCart.getId());
+            assertThat(cartItems).isEmpty();
         }
 
         @Test
@@ -266,8 +288,8 @@ class CartServiceImplTest {
         }
 
         @Test
-        @DisplayName("Должен вернуть отсортированные по названию товары")
-        void shouldReturnItemsSortedByTitle() {
+        @DisplayName("Должен вернуть отсортированные по названию товары (A-Z)")
+        void shouldReturnItemsSortedByTitleAscending() {
             addItemToCart(testCart.getId(), testItem2.getId(), 1); // Товар B
             addItemToCart(testCart.getId(), testItem1.getId(), 2); // Товар A
             addItemToCart(testCart.getId(), testItem3.getId(), 3); // Товар C
@@ -275,9 +297,9 @@ class CartServiceImplTest {
             List<CartItemDto> items = cartService.getCartItemsWithDetails(testCart.getId());
 
             assertThat(items).hasSize(3);
-            assertThat(items.get(0).title()).isEqualTo(testItem3.getTitle()); // Товар C
-            assertThat(items.get(1).title()).isEqualTo(testItem2.getTitle()); // Товар B
-            assertThat(items.get(2).title()).isEqualTo(testItem1.getTitle()); // Товар A
+            assertThat(items.get(0).title()).isEqualTo(testItem3.getTitle()); // C
+            assertThat(items.get(1).title()).isEqualTo(testItem2.getTitle()); // B
+            assertThat(items.get(2).title()).isEqualTo(testItem1.getTitle()); // A
         }
 
         @Test
@@ -390,6 +412,9 @@ class CartServiceImplTest {
             assertThat(counts.get(testItem2.getId())).isEqualTo(3);
             assertThat(counts.get(testItem3.getId())).isEqualTo(2);
 
+            Long total = cartService.getCartTotal(testCart.getId());
+            assertThat(total).isEqualTo(100*5 + 200*3 + 150*2);
+
             cartService.updateItemCount(testCart.getId(), testItem1, "DELETE");
             cartService.updateItemCount(testCart.getId(), testItem2, "DELETE");
             cartService.updateItemCount(testCart.getId(), testItem3, "DELETE");
@@ -415,6 +440,15 @@ class CartServiceImplTest {
 
             Long total = cartService.getCartTotal(nonExistentCartId);
             assertThat(total).isZero();
+        }
+
+        @Test
+        @DisplayName("Должен корректно обработать DELETE для отсутствующего товара")
+        void shouldHandleDeleteForNonExistentItem() {
+            cartService.updateItemCount(testCart.getId(), testItem1, "DELETE");
+
+            List<CartItem> cartItems = cartItemRepository.findByCartId(testCart.getId());
+            assertThat(cartItems).isEmpty();
         }
     }
 

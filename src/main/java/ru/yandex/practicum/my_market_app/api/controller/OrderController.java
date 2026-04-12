@@ -1,5 +1,6 @@
 package ru.yandex.practicum.my_market_app.api.controller;
 
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -12,7 +13,6 @@ import ru.yandex.practicum.my_market_app.persistence.entity.Order;
 import java.util.List;
 
 @Controller
-@RequestMapping()
 @RequiredArgsConstructor
 public class OrderController {
 
@@ -20,8 +20,8 @@ public class OrderController {
     private final CartService cartService;
 
     @PostMapping("/buy")
-    public String buy() {
-        Long cartId = cartService.getCurrentCartId();
+    public String buy(HttpSession session) {
+        Long cartId = cartService.getCurrentCartId(session.getId());
 
         Order order = orderService.createOrderFromCart(cartId);
 

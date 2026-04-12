@@ -42,6 +42,16 @@ public class ApiExceptionHandler {
                 .body(new ErrorResponse("BAD_REQUEST", e.getMessage()));
     }
 
+    @ExceptionHandler(OrderItemNotFoundException.class)
+    public ResponseEntity<ErrorResponse> orderItemNotException(OrderItemNotFoundException e) {
+        log.error("❌ Ошибка: нет товаров для оформления заказа");
+        logError(e);
+        log.error("📚 Стек ошибки:", e);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("BAD_REQUEST", e.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleInternalError(Exception e) {
         log.error("💥 Критическая ошибка приложения");

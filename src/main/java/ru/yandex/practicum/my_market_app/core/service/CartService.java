@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 public interface CartService {
-    Long getCurrentCartId();
+    Long getCurrentCartId(String sessionId);
 
     Map<Long, Integer> getItemCounts(Long cartId);
 

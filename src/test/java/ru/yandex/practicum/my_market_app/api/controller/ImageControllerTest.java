@@ -1,21 +1,16 @@
-package api.controller;
+package ru.yandex.practicum.my_market_app.api.controller;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import ru.yandex.practicum.my_market_app.Application;
-import ru.yandex.practicum.my_market_app.api.controller.ImageController;
-import ru.yandex.practicum.my_market_app.api.handler.ApiExceptionHandler;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ImageController.class)
-@ContextConfiguration(classes = {Application.class, ApiExceptionHandler.class})
 @DisplayName("Тесты контроллера изображений")
 class ImageControllerTest {
 

@@ -12,7 +12,7 @@ import ru.yandex.practicum.my_market_app.core.mapper.PageableBuilder;
 import ru.yandex.practicum.my_market_app.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_app.core.model.PagingInfo;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
-import ru.yandex.practicum.my_market_app.persistence.model.ItemDto;
+import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 import ru.yandex.practicum.my_market_app.persistence.repository.ItemRepository;
 
 import java.util.List;
@@ -28,8 +28,8 @@ public class ItemServiceImpl implements ItemService {
     private final PageableBuilder pageableBuilder;
 
     @Override
-    public ItemsPageData getItemsPage(String search, String sort, int pageNumber, int pageSize) {
-        Long cartId = cartService.getCurrentCartId();
+    public ItemsPageData getItemsPage(String search, String sort, int pageNumber, int pageSize, String sessionId) {
+        Long cartId = cartService.getCurrentCartId(sessionId);
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
         Pageable pageable = pageableBuilder.createPageable(pageNumber, pageSize, sort);
         Page<Item> itemPage = getItemsPageWithSearch(search, pageable);
@@ -48,8 +48,8 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
-    public ItemDto getItemById(Long itemId) {
-        Long cartId = cartService.getCurrentCartId();
+    public ItemDto getItemById(Long itemId, String sessionId) {
+        Long cartId = cartService.getCurrentCartId(sessionId);
         Item item = getItemEntityById(itemId);
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);
         int updatedCount = cartItemCounts.getOrDefault(item.getId(), 0);
@@ -59,8 +59,9 @@ public class ItemServiceImpl implements ItemService {
     @Override
     @Transactional
     public String updateCartItemAndGetRedirectUrl(Long itemId, String search, String sort,
-                                                  int pageNumber, int pageSize, String action) {
-        Long cartId = cartService.getCurrentCartId();
+                                                  int pageNumber, int pageSize, String action, String sessionId) {
+
+        Long cartId = cartService.getCurrentCartId(sessionId);
         Item item = getItemEntityById(itemId);
         cartService.updateItemCount(cartId, item, action);
 
@@ -69,8 +70,8 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     @Transactional
-    public ItemDto updateItemCountAndGetItem(Long itemId, String action) {
-        Long cartId = cartService.getCurrentCartId();
+    public ItemDto updateItemCountAndGetItem(Long itemId, String action, String sessionId) {
+        Long cartId = cartService.getCurrentCartId(sessionId);
         Item item = getItemEntityById(itemId);
         cartService.updateItemCount(cartId, item, action);
         Map<Long, Integer> cartItemCounts = cartService.getItemCounts(cartId);

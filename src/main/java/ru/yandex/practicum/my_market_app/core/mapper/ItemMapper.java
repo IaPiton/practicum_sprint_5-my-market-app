@@ -3,7 +3,7 @@ package ru.yandex.practicum.my_market_app.core.mapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
-import ru.yandex.practicum.my_market_app.persistence.model.ItemDto;
+import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 
 import java.util.List;
 import java.util.Map;

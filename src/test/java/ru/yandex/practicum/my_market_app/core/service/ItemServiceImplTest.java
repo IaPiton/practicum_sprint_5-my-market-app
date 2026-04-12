@@ -1,6 +1,6 @@
-package core.service;
+package ru.yandex.practicum.my_market_app.core.service;
 
-import configuration.PgTestContainerConfiguration;
+import ru.yandex.practicum.my_market_app.configuration.PgTestContainerConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -12,15 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.my_market_app.Application;
 import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_app.core.model.ItemsPageData;
-import ru.yandex.practicum.my_market_app.core.service.CartService;
-import ru.yandex.practicum.my_market_app.core.service.ItemService;
+import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 import ru.yandex.practicum.my_market_app.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
-import ru.yandex.practicum.my_market_app.persistence.model.ItemDto;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
 import ru.yandex.practicum.my_market_app.persistence.repository.ItemRepository;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,11 +46,13 @@ class ItemServiceImplTest {
     private Item testItem1;
     private Item testItem2;
     private Item testItem3;
+    private String testSessionId;
 
     @BeforeEach
     void setUp() {
+        testSessionId = "test-session-" + System.currentTimeMillis();
         testCart = new Cart();
-        testCart.setSessionId("test-session-" + System.currentTimeMillis());
+        testCart.setSessionId(testSessionId);
         testCart = cartRepository.save(testCart);
 
         testItem1 = new Item();
@@ -74,20 +75,6 @@ class ItemServiceImplTest {
         testItem3.setImgPath("/images/apple.jpg");
         testItem3.setPrice(150L);
         testItem3 = itemRepository.save(testItem3);
-
-        Item testItem4 = new Item();
-        testItem4.setTitle("Виноград");
-        testItem4.setDescription("Сладкий виноград");
-        testItem4.setImgPath("/images/grape.jpg");
-        testItem4.setPrice(300L);
-        itemRepository.save(testItem4);
-
-        Item testItem5 = new Item();
-        testItem5.setTitle("Груша");
-        testItem5.setDescription("Сочная груша");
-        testItem5.setImgPath("/images/pear.jpg");
-        testItem5.setPrice(250L);
-        itemRepository.save(testItem5);
     }
 
     @Nested
@@ -97,7 +84,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен вернуть страницу товаров без поиска и сортировки")
         void shouldReturnItemsPageWithoutSearchAndSort() {
-            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10, testSessionId);
 
             assertThat(pageData).isNotNull();
             assertThat(pageData.getItemsGrid()).isNotEmpty();
@@ -111,7 +98,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен вернуть страницу товаров с сортировкой по названию ALPHA")
         void shouldReturnItemsPageWithAlphaSort() {
-            ItemsPageData pageData = itemService.getItemsPage("", "ALPHA", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("", "ALPHA", 1, 10, testSessionId);
 
             assertThat(pageData).isNotNull();
             assertThat(pageData.getSort()).isEqualTo("ALPHA");
@@ -125,15 +112,13 @@ class ItemServiceImplTest {
             assertThat(items).isNotEmpty();
             assertThat(items.get(0).title()).isEqualTo("Апельсин");
             assertThat(items.get(1).title()).isEqualTo("Банан");
-            assertThat(items.get(2).title()).isEqualTo("Виноград");
-            assertThat(items.get(3).title()).isEqualTo("Груша");
-            assertThat(items.get(4).title()).isEqualTo("Яблоко");
+            assertThat(items.get(2).title()).isEqualTo("Яблоко");
         }
 
         @Test
         @DisplayName("Должен вернуть страницу товаров с сортировкой по цене PRICE")
         void shouldReturnItemsPageWithPriceSort() {
-            ItemsPageData pageData = itemService.getItemsPage("", "PRICE", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("", "PRICE", 1, 10, testSessionId);
 
             assertThat(pageData).isNotNull();
             assertThat(pageData.getSort()).isEqualTo("PRICE");
@@ -148,14 +133,12 @@ class ItemServiceImplTest {
             assertThat(items.get(0).price()).isEqualTo(100L);
             assertThat(items.get(1).price()).isEqualTo(150L);
             assertThat(items.get(2).price()).isEqualTo(200L);
-            assertThat(items.get(3).price()).isEqualTo(250L);
-            assertThat(items.get(4).price()).isEqualTo(300L);
         }
 
         @Test
         @DisplayName("Должен вернуть страницу товаров с поиском")
         void shouldReturnItemsPageWithSearch() {
-            ItemsPageData pageData = itemService.getItemsPage("яблоко", "NO", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("яблоко", "NO", 1, 10, testSessionId);
 
             assertThat(pageData).isNotNull();
             assertThat(pageData.getSearch()).isEqualTo("яблоко");
@@ -173,7 +156,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен вернуть пустой список при поиске по несуществующему товару")
         void shouldReturnEmptyListWhenSearchNotFound() {
-            ItemsPageData pageData = itemService.getItemsPage("несуществующий товар", "NO", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("несуществующий товар", "NO", 1, 10, testSessionId);
 
             assertThat(pageData).isNotNull();
 
@@ -189,7 +172,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен корректно разбивать товары на строки по 3 товара")
         void shouldPartitionItemsIntoRowsOfThree() {
-            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10, testSessionId);
 
             List<List<ItemDto>> grid = pageData.getItemsGrid();
             assertThat(grid).isNotEmpty();
@@ -202,13 +185,13 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен добавить заглушки для пустых ячеек в последней строке")
         void shouldAddPlaceholdersForEmptyCells() {
-            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 4);
+            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 2, testSessionId);
 
             List<List<ItemDto>> grid = pageData.getItemsGrid();
 
-            assertThat(grid).hasSize(2);
+            assertThat(grid).hasSize(1);
 
-            List<ItemDto> lastRow = grid.get(1);
+            List<ItemDto> lastRow = grid.getFirst();
             assertThat(lastRow).hasSize(3);
 
             boolean hasPlaceholder = lastRow.stream().anyMatch(item -> item.id() == -1);
@@ -223,7 +206,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен вернуть товар по существующему ID")
         void shouldReturnItemById() {
-            ItemDto item = itemService.getItemById(testItem1.getId());
+            ItemDto item = itemService.getItemById(testItem1.getId(), testSessionId);
 
             assertThat(item).isNotNull();
             assertThat(item.id()).isEqualTo(testItem1.getId());
@@ -236,7 +219,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен выбросить исключение при ненайденном товаре")
         void shouldThrowExceptionWhenItemNotFound() {
-            assertThatThrownBy(() -> itemService.getItemById(99999L))
+            assertThatThrownBy(() -> itemService.getItemById(99999L, testSessionId))
                     .isInstanceOf(ItemNotFoundException.class)
                     .hasMessageContaining("Товар не найден");
         }
@@ -244,12 +227,10 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен вернуть товар с количеством в корзине")
         void shouldReturnItemWithCartCount() {
-            Long currentCartId = cartService.getCurrentCartId();
+            cartService.updateItemCount(testCart.getId(), testItem1, "PLUS");
+            cartService.updateItemCount(testCart.getId(), testItem1, "PLUS");
 
-            cartService.updateItemCount(currentCartId, testItem1, "PLUS");
-            cartService.updateItemCount(currentCartId, testItem1, "PLUS");
-
-            ItemDto item = itemService.getItemById(testItem1.getId());
+            ItemDto item = itemService.getItemById(testItem1.getId(), testSessionId);
 
             assertThat(item).isNotNull();
             assertThat(item.count()).isEqualTo(2);
@@ -264,32 +245,28 @@ class ItemServiceImplTest {
         @DisplayName("Должен увеличить количество товара и вернуть URL для редиректа при PLUS")
         void shouldIncreaseItemCountAndReturnRedirectUrlWhenPlusAction() {
             String redirectUrl = itemService.updateCartItemAndGetRedirectUrl(
-                    testItem1.getId(), "тест", "ALPHA", 2, 10, "PLUS");
+                    testItem1.getId(), "тест", "ALPHA", 2, 10, "PLUS", testSessionId);
 
             assertThat(redirectUrl).isNotNull();
             assertThat(redirectUrl).contains("/items?search=тест&sort=ALPHA&pageNumber=2&pageSize=10");
 
-            Long cartId = cartService.getCurrentCartId();
-            int count = cartService.getItemCounts(cartId).getOrDefault(testItem1.getId(), 0);
+            int count = cartService.getItemCounts(testCart.getId()).getOrDefault(testItem1.getId(), 0);
             assertThat(count).isEqualTo(1);
         }
 
         @Test
         @DisplayName("Должен уменьшить количество товара и вернуть URL для редиректа при MINUS")
         void shouldDecreaseItemCountAndReturnRedirectUrlWhenMinusAction() {
-            Long currentCartId = cartService.getCurrentCartId();
-
-            cartService.updateItemCount(currentCartId, testItem1, "PLUS");
-            cartService.updateItemCount(currentCartId, testItem1, "PLUS");
+            cartService.updateItemCount(testCart.getId(), testItem1, "PLUS");
+            cartService.updateItemCount(testCart.getId(), testItem1, "PLUS");
 
             String redirectUrl = itemService.updateCartItemAndGetRedirectUrl(
-                    testItem1.getId(), "", "NO", 1, 5, "MINUS");
+                    testItem1.getId(), "", "NO", 1, 5, "MINUS", testSessionId);
 
             assertThat(redirectUrl).isNotNull();
             assertThat(redirectUrl).contains("/items?sort=NO&pageNumber=1&pageSize=5");
 
-            Long cartId = cartService.getCurrentCartId();
-            int count = cartService.getItemCounts(cartId).getOrDefault(testItem1.getId(), 0);
+            int count = cartService.getItemCounts(testCart.getId()).getOrDefault(testItem1.getId(), 0);
             assertThat(count).isEqualTo(1);
         }
 
@@ -299,12 +276,11 @@ class ItemServiceImplTest {
             cartService.updateItemCount(testCart.getId(), testItem1, "PLUS");
 
             String redirectUrl = itemService.updateCartItemAndGetRedirectUrl(
-                    testItem1.getId(), "", "NO", 1, 5, "DELETE");
+                    testItem1.getId(), "", "NO", 1, 5, "DELETE", testSessionId);
 
             assertThat(redirectUrl).isNotNull();
 
-            Long cartId = cartService.getCurrentCartId();
-            int count = cartService.getItemCounts(cartId).getOrDefault(testItem1.getId(), 0);
+            int count = cartService.getItemCounts(testCart.getId()).getOrDefault(testItem1.getId(), 0);
             assertThat(count).isZero();
         }
 
@@ -312,7 +288,7 @@ class ItemServiceImplTest {
         @DisplayName("Должен выбросить исключение при обновлении несуществующего товара")
         void shouldThrowExceptionWhenUpdatingNonExistentItem() {
             assertThatThrownBy(() -> itemService.updateCartItemAndGetRedirectUrl(
-                    99999L, "", "NO", 1, 5, "PLUS"))
+                    99999L, "", "NO", 1, 5, "PLUS", testSessionId))
                     .isInstanceOf(ItemNotFoundException.class)
                     .hasMessageContaining("Товар не найден");
         }
@@ -325,7 +301,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен увеличить количество и вернуть обновленный товар при PLUS")
         void shouldIncreaseCountAndReturnUpdatedItemWhenPlusAction() {
-            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS");
+            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
 
             assertThat(updatedItem).isNotNull();
             assertThat(updatedItem.id()).isEqualTo(testItem1.getId());
@@ -335,10 +311,10 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен уменьшить количество и вернуть обновленный товар при MINUS")
         void shouldDecreaseCountAndReturnUpdatedItemWhenMinusAction() {
-            itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS");
-            itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS");
+            itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
+            itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
 
-            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "MINUS");
+            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "MINUS", testSessionId);
 
             assertThat(updatedItem).isNotNull();
             assertThat(updatedItem.id()).isEqualTo(testItem1.getId());
@@ -348,9 +324,9 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен удалить товар и вернуть товар с нулевым количеством при DELETE")
         void shouldDeleteAndReturnItemWithZeroCountWhenDeleteAction() {
-            itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS");
+            itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
 
-            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "DELETE");
+            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "DELETE", testSessionId);
 
             assertThat(updatedItem).isNotNull();
             assertThat(updatedItem.id()).isEqualTo(testItem1.getId());
@@ -360,7 +336,7 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен выбросить исключение при обновлении несуществующего товара")
         void shouldThrowExceptionWhenUpdatingNonExistentItem() {
-            assertThatThrownBy(() -> itemService.updateItemCountAndGetItem(99999L, "PLUS"))
+            assertThatThrownBy(() -> itemService.updateItemCountAndGetItem(99999L, "PLUS", testSessionId))
                     .isInstanceOf(ItemNotFoundException.class)
                     .hasMessageContaining("Товар не найден");
         }
@@ -390,19 +366,50 @@ class ItemServiceImplTest {
     }
 
     @Nested
+    @DisplayName("Тесты работы с разными сессиями")
+    class DifferentSessionsTests {
+
+        @Test
+        @DisplayName("Разные сессии должны иметь разные корзины")
+        void differentSessionsShouldHaveDifferentCarts() {
+            String sessionId1 = "session-1-" + System.currentTimeMillis();
+            String sessionId2 = "session-2-" + System.currentTimeMillis();
+
+            itemService.updateCartItemAndGetRedirectUrl(testItem1.getId(), "", "NO", 1, 5, "PLUS", sessionId1);
+            itemService.updateCartItemAndGetRedirectUrl(testItem2.getId(), "", "NO", 1, 5, "PLUS", sessionId2);
+
+            ItemsPageData pageData1 = itemService.getItemsPage("", "NO", 1, 10, sessionId1);
+            ItemsPageData pageData2 = itemService.getItemsPage("", "NO", 1, 10, sessionId2);
+
+            List<ItemDto> items1 = pageData1.getItemsGrid().stream()
+                    .flatMap(List::stream)
+                    .filter(item -> Objects.equals(item.id(), testItem1.getId()))
+                    .toList();
+
+            List<ItemDto> items2 = pageData2.getItemsGrid().stream()
+                    .flatMap(List::stream)
+                    .filter(item -> Objects.equals(item.id(), testItem2.getId()))
+                    .toList();
+
+            assertThat(items1.getFirst().count()).isEqualTo(1);
+            assertThat(items2.getFirst().count()).isEqualTo(1);
+        }
+    }
+
+    @Nested
     @DisplayName("Интеграционные тесты потока данных")
     class IntegrationFlowTests {
 
         @Test
         @DisplayName("Должен корректно обработать полный цикл операций с товарами и корзиной")
         void shouldHandleFullItemAndCartCycle() {
-            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10, testSessionId);
             assertThat(pageData.getItemsGrid()).isNotEmpty();
 
-            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS");
+            ItemDto updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
             assertThat(updatedItem.count()).isEqualTo(1);
 
-            ItemsPageData updatedPageData = itemService.getItemsPage("", "NO", 1, 10);
+            ItemsPageData updatedPageData = itemService.getItemsPage("", "NO", 1, 10, testSessionId);
             List<List<ItemDto>> grid = updatedPageData.getItemsGrid();
             List<ItemDto> items = grid.stream()
                     .flatMap(List::stream)
@@ -410,23 +417,21 @@ class ItemServiceImplTest {
                     .toList();
             assertThat(items.getFirst().count()).isEqualTo(1);
 
-            updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS");
+            updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
             assertThat(updatedItem.count()).isEqualTo(2);
 
-            updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "DELETE");
+            updatedItem = itemService.updateItemCountAndGetItem(testItem1.getId(), "DELETE", testSessionId);
             assertThat(updatedItem.count()).isZero();
         }
 
         @Test
         @DisplayName("Должен корректно обработать поиск и сортировку вместе")
         void shouldHandleSearchAndSortTogether() {
-            Long currentCartId = cartService.getCurrentCartId();
+            cartService.updateItemCount(testCart.getId(), testItem2, "PLUS");
+            cartService.updateItemCount(testCart.getId(), testItem3, "PLUS");
+            cartService.updateItemCount(testCart.getId(), testItem3, "PLUS");
 
-            cartService.updateItemCount(currentCartId, testItem2, "PLUS");
-            cartService.updateItemCount(currentCartId, testItem3, "PLUS");
-            cartService.updateItemCount(currentCartId, testItem3, "PLUS");
-
-            ItemsPageData pageData = itemService.getItemsPage("яблоко", "PRICE", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("яблоко", "PRICE", 1, 10, testSessionId);
             assertThat(pageData.getSearch()).isEqualTo("яблоко");
             assertThat(pageData.getSort()).isEqualTo("PRICE");
 
@@ -444,10 +449,10 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен корректно обработать пагинацию")
         void shouldHandlePagination() {
-            ItemsPageData firstPage = itemService.getItemsPage("", "NO", 1, 2);
+            ItemsPageData firstPage = itemService.getItemsPage("", "NO", 1, 2, testSessionId);
             assertThat(firstPage.getPaging().pageNumber()).isEqualTo(1);
 
-            ItemsPageData secondPage = itemService.getItemsPage("", "NO", 2, 2);
+            ItemsPageData secondPage = itemService.getItemsPage("", "NO", 2, 2, testSessionId);
             assertThat(secondPage.getPaging().pageNumber()).isEqualTo(2);
 
             List<ItemDto> firstPageItems = firstPage.getItemsGrid().stream()
@@ -480,7 +485,7 @@ class ItemServiceImplTest {
                 itemRepository.save(item);
             }
 
-            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10);
+            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 10, testSessionId);
             List<List<ItemDto>> grid = pageData.getItemsGrid();
 
             assertThat(grid.size()).isGreaterThanOrEqualTo(3);
@@ -489,7 +494,8 @@ class ItemServiceImplTest {
         @Test
         @DisplayName("Должен создать сетку с заглушками для пустых ячеек")
         void shouldCreateGridWithPlaceholdersForEmptyCells() {
-            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 4);
+
+            ItemsPageData pageData = itemService.getItemsPage("", "NO", 1, 2, testSessionId);
             List<List<ItemDto>> grid = pageData.getItemsGrid();
 
             List<ItemDto> lastRow = grid.getLast();

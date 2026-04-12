@@ -1,4 +1,4 @@
-package configuration;
+package ru.yandex.practicum.my_market_app.configuration;
 
 
 import org.springframework.context.annotation.Bean;
