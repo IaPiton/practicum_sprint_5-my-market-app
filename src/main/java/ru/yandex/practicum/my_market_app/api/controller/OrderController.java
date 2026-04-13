@@ -1,18 +1,16 @@
 package ru.yandex.practicum.my_market_app.api.controller;
 
-import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.my_market_app.core.model.OrderDto;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_app.core.service.CartService;
 import ru.yandex.practicum.my_market_app.core.service.OrderService;
-import ru.yandex.practicum.my_market_app.persistence.entity.Order;
-
-import java.util.List;
 
 @Controller
+@RequestMapping()
 @RequiredArgsConstructor
 public class OrderController {
 
@@ -20,33 +18,32 @@ public class OrderController {
     private final CartService cartService;
 
     @PostMapping("/buy")
-    public String buy(HttpSession session) {
-        Long cartId = cartService.getCurrentCartId(session.getId());
-
-        Order order = orderService.createOrderFromCart(cartId);
-
-        return "redirect:/orders/" + order.getId() + "?newOrder=true";
+    public Mono<String> buy(WebSession session) {
+        return cartService.getCurrentCartId(session.getId())
+                .flatMap(orderService::createOrderFromCart)
+                .map(order -> "redirect:/orders/" + order.getId() + "?newOrder=true");
     }
 
     @GetMapping("/orders/{id}")
-    public String getOrder(
+    public Mono<String> getOrder(
             @PathVariable Long id,
             @RequestParam(required = false, defaultValue = "false") boolean newOrder,
             Model model) {
-        OrderDto order = orderService.getOrderById(id);
 
-        model.addAttribute("order", order);
-        model.addAttribute("newOrder", newOrder);
-
-        return "order";
+        return orderService.getOrderById(id).doOnNext(
+                order -> {
+                    model.addAttribute("order", order);
+                    model.addAttribute("newOrder", newOrder);
+                }
+        ).thenReturn("order");
     }
 
     @GetMapping("/orders")
-    public String getOrders(Model model) {
-        List<OrderDto> orders = orderService.getAllOrders();
-
-        model.addAttribute("orders", orders);
-
-        return "orders";
+    public Mono<String> getOrders(Model model) {
+        return  orderService.getAllOrders()
+                .collectList()
+                .doOnNext(
+                        orders -> model.addAttribute("orders", orders)
+                ).thenReturn("orders");
     }
 }

@@ -3,9 +3,9 @@ package ru.yandex.practicum.my_market_app.api.handler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.reactive.resource.NoResourceFoundException;
 import ru.yandex.practicum.my_market_app.api.model.ErrorResponse;
 
 @Slf4j
@@ -32,11 +32,10 @@ public class ApiExceptionHandler {
                 .body(new ErrorResponse("BAD_REQUEST", e.getMessage()));
     }
 
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ErrorResponse> itemNotFoundException(MissingServletRequestParameterException e) {
-        log.error("❌ Ошибка: входящих параметров");
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> noResourceFoundException(NoResourceFoundException e) {
         logError(e);
-        log.error("📚 Стек ошибки:", e);
+        log.error("❌ No static resource");
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("BAD_REQUEST", e.getMessage()));

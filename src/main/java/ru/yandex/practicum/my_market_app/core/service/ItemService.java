@@ -1,18 +1,19 @@
 package ru.yandex.practicum.my_market_app.core.service;
 
+import reactor.core.publisher.Mono;
+import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 import ru.yandex.practicum.my_market_app.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
-import ru.yandex.practicum.my_market_app.core.model.ItemDto;
+
 
 public interface ItemService {
-    ItemsPageData getItemsPage(String search, String sort, int pageNumber, int pageSize, String sessionId);
+    Mono<ItemsPageData> getItemsPage(String search, String sort, int pageNumber, int pageSize, String sessionId);
 
-    ItemDto getItemById(Long id, String sessionId);
+    Mono<ItemDto> getItemById(Long id, String sessionId);
 
-    Item getItemEntityById(Long itemId);
+    Mono<String> updateCartItemAndGetRedirectUrl(Long id, String search, String sort, int pageNumber, int pageSize, String action, String sessionId);
 
-    String updateCartItemAndGetRedirectUrl(Long id, String search, String sort,
-                                           int pageNumber, int pageSize, String action, String sessionId);
+    Mono<Item> getItemEntityById(Long itemId);
 
-    ItemDto updateItemCountAndGetItem(Long id, String action, String sessionId);
+    Mono<ItemDto> updateItemCountAndGetItem(Long id, String action, String sessionId);
 }
