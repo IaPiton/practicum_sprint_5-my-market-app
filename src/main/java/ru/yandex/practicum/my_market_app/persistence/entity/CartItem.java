@@ -1,43 +1,39 @@
 package ru.yandex.practicum.my_market_app.persistence.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
+
 
 import java.time.LocalDateTime;
 
 
-@Entity
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "cart_items", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"cart_id", "item_id"})
-})
+@Table(name = "cart_items")
 public class CartItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cart_id", nullable = false)
-    private Cart cart;
+    @Column(value = "cart_id")
+    private Long cartId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "item_id", nullable = false)
-    private Item item;
+    @Column(value = "item_id")
+    private Long itemId;
 
-    @Column(nullable = false)
+    @Column(value = "quantity")
     private Integer quantity = 1;
 
-    @CreationTimestamp
-    @Column(name = "added_at", updatable = false)
+    @Column(value = "added_at")
     private LocalDateTime addedAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    @Column(value = "updated_at")
     private LocalDateTime updatedAt;
 }
