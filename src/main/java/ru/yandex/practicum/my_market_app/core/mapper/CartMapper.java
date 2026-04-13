@@ -10,8 +10,7 @@ import ru.yandex.practicum.my_market_app.persistence.entity.Item;
 @RequiredArgsConstructor
 public class CartMapper {
 
-    public CartItemDto convertToCartItemDto(CartItem cartItem) {
-        Item item = cartItem.getItem();
+    public CartItemDto convertToCartItemDto(CartItem cartItem, Item item) {
         int quantity = cartItem.getQuantity();
         long subtotal = item.getPrice() * quantity;
 

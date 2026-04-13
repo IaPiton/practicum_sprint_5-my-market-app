@@ -16,7 +16,7 @@ public class OrderMapper {
             return null;
         }
 
-        List<OrderItemDto> itemDtos = convertToOrderItemDtoList(order.getItems());
+        List<OrderItemDto> itemDtos = convertToOrderItemDtoList(order.getOrderItems());
         long totalSum = itemDtos.stream()
                 .mapToLong(OrderItemDto::subtotal)
                 .sum();
@@ -39,7 +39,7 @@ public class OrderMapper {
         long subtotal = orderItem.getPrice() * orderItem.getQuantity();
 
         return OrderItemDto.builder()
-                .id(orderItem.getItem().getId())
+                .id(orderItem.getItemId())
                 .title(orderItem.getTitle())
                 .price(orderItem.getPrice())
                 .count(orderItem.getQuantity())

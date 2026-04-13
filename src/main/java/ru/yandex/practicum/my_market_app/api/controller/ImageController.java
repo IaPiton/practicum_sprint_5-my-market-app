@@ -15,8 +15,8 @@ import reactor.core.scheduler.Schedulers;
 @RequiredArgsConstructor
 public class ImageController {
 
-    private static final String IMAGES_PATH = "/images/";
-    private static final String PLACEHOLDER_IMAGE = "/images/placeholder.jpg";
+    private static final String IMAGES_PATH = "static/images/";
+    private static final String PLACEHOLDER_IMAGE = "static/images/placeholder.jpg";
 
     @GetMapping(value = "/images/{filename}", produces = MediaType.IMAGE_JPEG_VALUE)
     public Mono<ResponseEntity<?>> getImage(@PathVariable String filename) {
