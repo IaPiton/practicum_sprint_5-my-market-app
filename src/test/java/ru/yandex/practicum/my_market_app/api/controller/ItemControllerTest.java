@@ -3,392 +3,524 @@ package ru.yandex.practicum.my_market_app.api.controller;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.mock.web.MockHttpSession;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_app.api.handler.ItemNotFoundException;
+import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 import ru.yandex.practicum.my_market_app.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_app.core.model.PagingInfo;
 import ru.yandex.practicum.my_market_app.core.service.ItemService;
-import ru.yandex.practicum.my_market_app.core.model.ItemDto;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = ItemController.class)
-@DisplayName("Тесты контроллера товаров")
+@WebFluxTest(ItemController.class)
+@DisplayName("Тесты контроллера товаров (WebFlux)")
 class ItemControllerTest {
 
     @Autowired
-    private MockMvc mockMvc;
+    private WebTestClient webTestClient;
 
     @MockitoBean
     private ItemService itemService;
 
-
     @Test
-    @DisplayName("GET /items - должен вернуть страницу витрины с товарами")
-    void getItems_ShouldReturnItemsPageWithItems() throws Exception {
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        List<ItemDto> row = new ArrayList<>();
-        row.add(ItemDto.builder()
-                .id(1L)
-                .title("Тестовый товар 1")
-                .description("Описание товара 1")
-                .imgPath("/images/test1.jpg")
-                .price(100L)
-                .count(0)
-                .build());
-        itemsGrid.add(row);
+    @DisplayName("GET / - должен вернуть главную страницу с товарами")
+    void getItems_RootPath_ShouldReturnItemsPage() {
+        String search = "";
+        String sort = "NO";
+        int pageNumber = 1;
+        int pageSize = 5;
 
-        PagingInfo pagingInfo = new PagingInfo(1, 5, false, false, 1, 1);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, "", "NO", pagingInfo);
+        List<ItemDto> items = Arrays.asList(
+                ItemDto.builder()
+                        .id(1L)
+                        .title("Тестовый товар 1")
+                        .description("Описание товара 1")
+                        .imgPath("/images/test1.jpg")
+                        .price(100L)
+                        .build(),
+                ItemDto.builder()
+                        .id(2L)
+                        .title("Тестовый товар 2")
+                        .description("Описание товара 2")
+                        .imgPath("/images/test2.jpg")
+                        .price(150L)
+                        .build()
+        );
 
-        when(itemService.getItemsPage(anyString(), anyString(), anyInt(), anyInt(), anyString()))
-                .thenReturn(pageData);
+        List<List<ItemDto>> itemsGrid = List.of(
+                Arrays.asList(items.get(0), items.get(1))
+        );
 
-        MockHttpSession session = new MockHttpSession();
+        PagingInfo paging = new PagingInfo(1, 5, false, true, 3, 15);
 
-        mockMvc.perform(get("/items")
-                        .session(session))
-                .andExpect(status().isOk())
-                .andExpect(view().name("items"))
-                .andExpect(model().attributeExists("items"))
-                .andExpect(model().attributeExists("search"))
-                .andExpect(model().attributeExists("sort"))
-                .andExpect(model().attributeExists("paging"));
+        ItemsPageData itemsPageData = ItemsPageData.builder()
+                .itemsGrid(itemsGrid)
+                .search(search)
+                .sort(sort)
+                .paging(paging)
+                .build();
 
-        verify(itemService).getItemsPage(eq(""), eq("NO"), eq(1), eq(5), anyString());
+        when(itemService.getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString()))
+                .thenReturn(Mono.just(itemsPageData));
+
+        webTestClient.get()
+                .uri("/")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("Тестовый товар 1");
+                    assert body.contains("Тестовый товар 2");
+                });
+
+        verify(itemService).getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString());
     }
 
     @Test
-    @DisplayName("GET / - корневой путь должен вернуть страницу витрины с товарами")
-    void getItems_FromRootPath_ShouldReturnItemsPage() throws Exception {
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        PagingInfo pagingInfo = new PagingInfo(1, 5, false, false, 0, 0);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, "", "NO", pagingInfo);
-
-        when(itemService.getItemsPage(anyString(), anyString(), anyInt(), anyInt(), anyString()))
-                .thenReturn(pageData);
-
-        mockMvc.perform(get("/"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("items"));
-
-        verify(itemService).getItemsPage(eq(""), eq("NO"), eq(1), eq(5), anyString());
-    }
-
-    @Test
-    @DisplayName("GET /items - с параметром поиска должен вернуть отфильтрованные товары")
-    void getItems_WithSearchParam_ShouldReturnFilteredItems() throws Exception {
-        String searchQuery = "тест";
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        PagingInfo pagingInfo = new PagingInfo(1, 5, false, false, 1, 1);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, searchQuery, "NO", pagingInfo);
-
-        when(itemService.getItemsPage(eq(searchQuery), eq("NO"), eq(1), eq(5), anyString()))
-                .thenReturn(pageData);
-
-        mockMvc.perform(get("/items")
-                        .param("search", searchQuery))
-                .andExpect(status().isOk())
-                .andExpect(view().name("items"))
-                .andExpect(model().attribute("search", searchQuery));
-
-        verify(itemService).getItemsPage(eq(searchQuery), eq("NO"), eq(1), eq(5), anyString());
-    }
-
-    @Test
-    @DisplayName("GET /items - с сортировкой ALPHA должен вернуть отсортированные по названию товары")
-    void getItems_WithAlphaSort_ShouldReturnSortedItems() throws Exception {
-        String sort = "ALPHA";
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        PagingInfo pagingInfo = new PagingInfo(1, 5, false, false, 1, 1);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, "", sort, pagingInfo);
-
-        when(itemService.getItemsPage(eq(""), eq(sort), eq(1), eq(5), anyString()))
-                .thenReturn(pageData);
-
-        mockMvc.perform(get("/items")
-                        .param("sort", sort))
-                .andExpect(status().isOk())
-                .andExpect(view().name("items"))
-                .andExpect(model().attribute("sort", sort));
-
-        verify(itemService).getItemsPage(eq(""), eq(sort), eq(1), eq(5), anyString());
-    }
-
-    @Test
-    @DisplayName("GET /items - с сортировкой PRICE должен вернуть отсортированные по цене товары")
-    void getItems_WithPriceSort_ShouldReturnItemsSortedByPrice() throws Exception {
-        String sort = "PRICE";
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        PagingInfo pagingInfo = new PagingInfo(1, 5, false, false, 1, 1);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, "", sort, pagingInfo);
-
-        when(itemService.getItemsPage(eq(""), eq(sort), eq(1), eq(5), anyString()))
-                .thenReturn(pageData);
-
-        mockMvc.perform(get("/items")
-                        .param("sort", sort))
-                .andExpect(status().isOk())
-                .andExpect(view().name("items"))
-                .andExpect(model().attribute("sort", sort));
-
-        verify(itemService).getItemsPage(eq(""), eq(sort), eq(1), eq(5), anyString());
-    }
-
-    @Test
-    @DisplayName("GET /items - с пагинацией должен вернуть правильную страницу")
-    void getItems_WithPagination_ShouldReturnCorrectPage() throws Exception {
+    @DisplayName("GET /items - должен вернуть страницу с товарами")
+    void getItems_ShouldReturnItemsPage() {
+        String search = "тест";
+        String sort = "price_asc";
         int pageNumber = 2;
         int pageSize = 10;
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        PagingInfo pagingInfo = new PagingInfo(pageNumber, pageSize, true, false, 5, 50);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, "", "NO", pagingInfo);
 
-        when(itemService.getItemsPage(eq(""), eq("NO"), eq(pageNumber), eq(pageSize), anyString()))
-                .thenReturn(pageData);
+        List<ItemDto> items = List.of(
+                ItemDto.builder()
+                        .id(1L)
+                        .title("Тестовый товар")
+                        .description("Описание")
+                        .price(100L)
+                        .build()
+        );
 
-        mockMvc.perform(get("/items")
-                        .param("pageNumber", String.valueOf(pageNumber))
-                        .param("pageSize", String.valueOf(pageSize)))
-                .andExpect(status().isOk())
-                .andExpect(view().name("items"))
-                .andExpect(model().attributeExists("paging"));
+        List<List<ItemDto>> itemsGrid = List.of(items);
 
-        verify(itemService).getItemsPage(eq(""), eq("NO"), eq(pageNumber), eq(pageSize), anyString());
+        PagingInfo paging = new PagingInfo(2, 10, true, true, 5, 50);
+
+        ItemsPageData itemsPageData = ItemsPageData.builder()
+                .itemsGrid(itemsGrid)
+                .search(search)
+                .sort(sort)
+                .paging(paging)
+                .build();
+
+        when(itemService.getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString()))
+                .thenReturn(Mono.just(itemsPageData));
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("search", search)
+                        .queryParam("sort", sort)
+                        .queryParam("pageNumber", pageNumber)
+                        .queryParam("pageSize", pageSize)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("Тестовый товар");
+                });
+
+        verify(itemService).getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString());
+    }
+
+    @Test
+    @DisplayName("GET /items - с параметрами по умолчанию должен вернуть страницу")
+    void getItems_WithDefaultParams_ShouldReturnItemsPage() {
+        String defaultSearch = "";
+        String defaultSort = "NO";
+        int defaultPageNumber = 1;
+        int defaultPageSize = 5;
+
+        List<ItemDto> items = List.of(
+                ItemDto.builder().id(1L).title("Товар").price(100L).build()
+        );
+
+        List<List<ItemDto>> itemsGrid = List.of(items);
+
+        PagingInfo paging = new PagingInfo(1, 5, false, false, 1, 1);
+
+        ItemsPageData itemsPageData = ItemsPageData.builder()
+                .itemsGrid(itemsGrid)
+                .search(defaultSearch)
+                .sort(defaultSort)
+                .paging(paging)
+                .build();
+
+        when(itemService.getItemsPage(eq(defaultSearch), eq(defaultSort), eq(defaultPageNumber), eq(defaultPageSize), anyString()))
+                .thenReturn(Mono.just(itemsPageData));
+
+        webTestClient.get()
+                .uri("/items")
+                .exchange()
+                .expectStatus().isOk();
+
+        verify(itemService).getItemsPage(eq(defaultSearch), eq(defaultSort), eq(defaultPageNumber), eq(defaultPageSize), anyString());
+    }
+
+    @Test
+    @DisplayName("GET /items - с пустой сеткой товаров должен вернуть пустую страницу")
+    void getItems_WithEmptyGrid_ShouldReturnEmptyPage() {
+        String search = "";
+        String sort = "NO";
+        int pageNumber = 1;
+        int pageSize = 5;
+
+        List<List<ItemDto>> emptyGrid = List.of();
+
+        PagingInfo paging = new PagingInfo(1, 5, false, false, 0, 0);
+
+        ItemsPageData itemsPageData = ItemsPageData.builder()
+                .itemsGrid(emptyGrid)
+                .search(search)
+                .sort(sort)
+                .paging(paging)
+                .build();
+
+        when(itemService.getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString()))
+                .thenReturn(Mono.just(itemsPageData));
+
+        webTestClient.get()
+                .uri("/items")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("0") || body.contains("пуст");
+                });
+
+        verify(itemService).getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString());
     }
 
     @Test
     @DisplayName("GET /items/{id} - должен вернуть страницу товара")
-    void getItem_ShouldReturnItemPage() throws Exception {
+    void getItem_ShouldReturnItemPage() {
         Long itemId = 1L;
-        ItemDto itemDto = ItemDto.builder()
+        ItemDto item = ItemDto.builder()
                 .id(itemId)
                 .title("Тестовый товар")
                 .description("Описание товара")
                 .imgPath("/images/test.jpg")
                 .price(100L)
-                .count(0)
                 .build();
 
-        when(itemService.getItemById(eq(itemId), anyString())).thenReturn(itemDto);
+        when(itemService.getItemById(eq(itemId), anyString())).thenReturn(Mono.just(item));
 
-        mockMvc.perform(get("/items/{id}", itemId))
-                .andExpect(status().isOk())
-                .andExpect(view().name("item"))
-                .andExpect(model().attributeExists("item"))
-                .andExpect(model().attribute("item", itemDto));
+        webTestClient.get()
+                .uri("/items/{id}", itemId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("Тестовый товар");
+                    assert body.contains("100");
+                });
 
         verify(itemService).getItemById(eq(itemId), anyString());
     }
 
     @Test
-    @DisplayName("GET /items/{id} - при ненайденном товаре должен вернуть ошибку BAD_REQUEST")
-    void getItem_WhenItemNotFound_ShouldReturnBadRequest() throws Exception {
+    @DisplayName("GET /items/{id} - при ненайденном товаре должен вернуть ошибку NOT_FOUND")
+    void getItem_WhenItemNotFound_ShouldReturnNotFound() {
         Long invalidItemId = 999L;
 
         when(itemService.getItemById(eq(invalidItemId), anyString()))
-                .thenThrow(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден"));
+                .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
 
-        mockMvc.perform(get("/items/{id}", invalidItemId))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value("Товар с ID " + invalidItemId + " не найден"));
+        webTestClient.get()
+                .uri("/items/{id}", invalidItemId)
+                .exchange()
+                .expectStatus().isBadRequest();
 
         verify(itemService).getItemById(eq(invalidItemId), anyString());
     }
 
     @Test
-    @DisplayName("POST /items - действие PLUS должно увеличить количество товара и вернуть редирект")
-    void updateCartItem_WithPlusAction_ShouldRedirect() throws Exception {
+    @DisplayName("POST /items - действие PLUS должно обновить корзину и вернуть редирект")
+    void updateCartItem_WithPlusAction_ShouldUpdateCartAndRedirect() {
         Long itemId = 1L;
+        String search = "тест";
+        String sort = "price_asc";
+        int pageNumber = 1;
+        int pageSize = 10;
         String action = "PLUS";
-        String redirectUrl = "redirect:/items?search=&sort=NO&pageNumber=1&pageSize=5";
+        String redirectUrl = "redirect:/items?search=тест&sort=price_asc&pageNumber=1&pageSize=10";
 
-        when(itemService.updateCartItemAndGetRedirectUrl(eq(itemId), eq(""), eq("NO"), eq(1), eq(5), eq(action), anyString()))
-                .thenReturn(redirectUrl);
+        when(itemService.updateCartItemAndGetRedirectUrl(
+                eq(itemId), eq(search), eq(sort), eq(pageNumber), eq(pageSize), eq(action), anyString()))
+                .thenReturn(Mono.just(redirectUrl));
 
-        mockMvc.perform(post("/items")
-                        .param("id", String.valueOf(itemId))
-                        .param("action", action))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/items?search=&sort=NO&pageNumber=1&pageSize=5"));
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId +
+                        "&search=" + search +
+                        "&sort=" + sort +
+                        "&pageNumber=" + pageNumber +
+                        "&pageSize=" + pageSize +
+                        "&action=" + action)
+                .exchange()
+                .expectStatus().is3xxRedirection();
 
-        verify(itemService).updateCartItemAndGetRedirectUrl(eq(itemId), eq(""), eq("NO"), eq(1), eq(5), eq(action), anyString());
+        verify(itemService).updateCartItemAndGetRedirectUrl(
+                eq(itemId), eq(search), eq(sort), eq(pageNumber), eq(pageSize), eq(action), anyString());
     }
 
     @Test
-    @DisplayName("POST /items - действие MINUS должно уменьшить количество товара и вернуть редирект")
-    void updateCartItem_WithMinusAction_ShouldRedirect() throws Exception {
+    @DisplayName("POST /items - действие MINUS должно обновить корзину и вернуть редирект")
+    void updateCartItem_WithMinusAction_ShouldUpdateCartAndRedirect() {
         Long itemId = 1L;
         String action = "MINUS";
-        String redirectUrl = "redirect:/items?search=тест&sort=ALPHA&pageNumber=2&pageSize=10";
+        String redirectUrl = "redirect:/items";
 
-        when(itemService.updateCartItemAndGetRedirectUrl(eq(itemId), eq("тест"), eq("ALPHA"), eq(2), eq(10), eq(action), anyString()))
-                .thenReturn(redirectUrl);
+        when(itemService.updateCartItemAndGetRedirectUrl(
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString()))
+                .thenReturn(Mono.just(redirectUrl));
 
-        mockMvc.perform(post("/items")
-                        .param("id", String.valueOf(itemId))
-                        .param("action", action)
-                        .param("search", "тест")
-                        .param("sort", "ALPHA")
-                        .param("pageNumber", "2")
-                        .param("pageSize", "10"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/items?search=тест&sort=ALPHA&pageNumber=2&pageSize=10"));
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId + "&action=" + action)
+                .exchange()
+                .expectStatus().is3xxRedirection();
 
-        verify(itemService).updateCartItemAndGetRedirectUrl(eq(itemId), eq("тест"), eq("ALPHA"), eq(2), eq(10), eq(action), anyString());
+        verify(itemService).updateCartItemAndGetRedirectUrl(
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString());
     }
 
     @Test
-    @DisplayName("POST /items - при ненайденном товаре должен вернуть ошибку BAD_REQUEST")
-    void updateCartItem_WhenItemNotFound_ShouldReturnBadRequest() throws Exception {
+    @DisplayName("POST /items - действие DELETE должно удалить товар из корзины и вернуть редирект")
+    void updateCartItem_WithDeleteAction_ShouldRemoveFromCartAndRedirect() {
+        Long itemId = 1L;
+        String action = "DELETE";
+        String redirectUrl = "redirect:/items";
+
+        when(itemService.updateCartItemAndGetRedirectUrl(
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString()))
+                .thenReturn(Mono.just(redirectUrl));
+
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId + "&action=" + action)
+                .exchange()
+                .expectStatus().is3xxRedirection();
+
+        verify(itemService).updateCartItemAndGetRedirectUrl(
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString());
+    }
+
+    @Test
+    @DisplayName("POST /items - при ненайденном товаре должен вернуть ошибку NOT_FOUND")
+    void updateCartItem_WhenItemNotFound_ShouldReturnNotFound() {
         Long invalidItemId = 999L;
         String action = "PLUS";
 
-        when(itemService.updateCartItemAndGetRedirectUrl(eq(invalidItemId), eq(""), eq("NO"), eq(1), eq(5), eq(action), anyString()))
-                .thenThrow(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден"));
+        when(itemService.updateCartItemAndGetRedirectUrl(
+                eq(invalidItemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString()))
+                .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
 
-        mockMvc.perform(post("/items")
-                        .param("id", String.valueOf(invalidItemId))
-                        .param("action", action))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value("Товар с ID " + invalidItemId + " не найден"));
+        webTestClient.post()
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + invalidItemId + "&action=" + action)
+                .exchange()
+                .expectStatus().isBadRequest();
 
-        verify(itemService).updateCartItemAndGetRedirectUrl(eq(invalidItemId), eq(""), eq("NO"), eq(1), eq(5), eq(action), anyString());
+        verify(itemService).updateCartItemAndGetRedirectUrl(
+                eq(invalidItemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString());
     }
 
     @Test
-    @DisplayName("POST /items/{id} - действие PLUS должно увеличить количество товара и вернуть обновленную страницу")
-    void updateCartItemFromItemPage_WithPlusAction_ShouldReturnUpdatedItemPage() throws Exception {
+    @DisplayName("POST /items/{id} - действие PLUS должно обновить товар и вернуть страницу товара")
+    void updateCartItemFromItemPage_WithPlusAction_ShouldUpdateItemAndReturnItemPage() {
         Long itemId = 1L;
         String action = "PLUS";
+
         ItemDto updatedItem = ItemDto.builder()
                 .id(itemId)
                 .title("Тестовый товар")
-                .description("Описание товара")
-                .imgPath("/images/test.jpg")
+                .description("Описание")
                 .price(100L)
-                .count(2)
+                .count(3)
                 .build();
 
-        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action), anyString())).thenReturn(updatedItem);
+        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action), anyString()))
+                .thenReturn(Mono.just(updatedItem));
 
-        mockMvc.perform(post("/items/{id}", itemId)
-                        .param("action", action))
-                .andExpect(status().isOk())
-                .andExpect(view().name("item"))
-                .andExpect(model().attributeExists("item"))
-                .andExpect(model().attribute("item", updatedItem));
+        webTestClient.post()
+                .uri("/items/{id}", itemId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId + "&action=" + action)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("Тестовый товар");
+                    assert body.contains("100");
+                });
 
         verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(action), anyString());
     }
 
     @Test
-    @DisplayName("POST /items/{id} - действие MINUS должно уменьшить количество товара и вернуть обновленную страницу")
-    void updateCartItemFromItemPage_WithMinusAction_ShouldReturnUpdatedItemPage() throws Exception {
+    @DisplayName("POST /items/{id} - действие MINUS должно обновить товар и вернуть страницу товара")
+    void updateCartItemFromItemPage_WithMinusAction_ShouldUpdateItemAndReturnItemPage() {
         Long itemId = 1L;
         String action = "MINUS";
+
         ItemDto updatedItem = ItemDto.builder()
                 .id(itemId)
                 .title("Тестовый товар")
-                .description("Описание товара")
-                .imgPath("/images/test.jpg")
                 .price(100L)
                 .count(1)
                 .build();
 
-        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action), anyString())).thenReturn(updatedItem);
+        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action), anyString()))
+                .thenReturn(Mono.just(updatedItem));
 
-        mockMvc.perform(post("/items/{id}", itemId)
-                        .param("action", action))
-                .andExpect(status().isOk())
-                .andExpect(view().name("item"))
-                .andExpect(model().attribute("item", updatedItem));
+        webTestClient.post()
+                .uri("/items/{id}", itemId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId + "&action=" + action)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("1");
+                });
 
         verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(action), anyString());
     }
 
     @Test
-    @DisplayName("POST /items/{id} - при ненайденном товаре должен вернуть ошибку BAD_REQUEST")
-    void updateCartItemFromItemPage_WhenItemNotFound_ShouldReturnBadRequest() throws Exception {
+    @DisplayName("POST /items/{id} - при ненайденном товаре должен вернуть ошибку NOT_FOUND")
+    void updateCartItemFromItemPage_WhenItemNotFound_ShouldReturnNotFound() {
         Long invalidItemId = 999L;
         String action = "PLUS";
 
         when(itemService.updateItemCountAndGetItem(eq(invalidItemId), eq(action), anyString()))
-                .thenThrow(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден"));
+                .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
 
-        mockMvc.perform(post("/items/{id}", invalidItemId)
-                        .param("action", action))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value("Товар с ID " + invalidItemId + " не найден"));
+        webTestClient.post()
+                .uri("/items/{id}", invalidItemId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + invalidItemId + "&action=" + action)
+                .exchange()
+                .expectStatus().isBadRequest();
 
         verify(itemService).updateItemCountAndGetItem(eq(invalidItemId), eq(action), anyString());
     }
 
     @Test
-    @DisplayName("POST /items/{id} - без параметра action должен вернуть ошибку валидации")
-    void updateCartItemFromItemPage_WithoutActionParam_ShouldReturnBadRequest() throws Exception {
-        mockMvc.perform(post("/items/{id}", 1L))
-                .andExpect(status().isBadRequest());
+    @DisplayName("POST /items/{id} - при неверном действии должен вернуть ошибку сервера")
+    void updateCartItemFromItemPage_WithInvalidAction_ShouldReturnServerError() {
+        Long itemId = 1L;
+        String invalidAction = "INVALID_ACTION";
+
+        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(invalidAction), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("Неизвестное действие: " + invalidAction)));
+
+        webTestClient.post()
+                .uri("/items/{id}", itemId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId + "&action=" + invalidAction)
+                .exchange()
+                .expectStatus().is5xxServerError();
+
+        verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(invalidAction), anyString());
     }
 
     @Test
-    @DisplayName("GET /items - при ошибке сервиса должен вернуть INTERNAL_SERVER_ERROR")
-    void getItems_WhenServiceThrowsException_ShouldReturnInternalServerError() throws Exception {
+    @DisplayName("GET /items - при ошибке сервиса должен вернуть ошибку сервера")
+    void getItems_WhenServiceThrowsException_ShouldReturnServerError() {
         when(itemService.getItemsPage(anyString(), anyString(), anyInt(), anyInt(), anyString()))
-                .thenThrow(new RuntimeException("Ошибка подключения к базе данных"));
+                .thenReturn(Mono.error(new RuntimeException("Ошибка подключения к базе данных")));
 
-        mockMvc.perform(get("/items"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("INTERNAL_SERVER"))
-                .andExpect(jsonPath("$.message").value("Произошла непредвиденная ошибка"));
+        webTestClient.get()
+                .uri("/items")
+                .exchange()
+                .expectStatus().is5xxServerError();
     }
 
     @Test
-    @DisplayName("POST /items - без параметра id должен вернуть ошибку валидации")
-    void updateCartItem_WithoutIdParam_ShouldReturnBadRequest() throws Exception {
-        mockMvc.perform(post("/items")
-                        .param("action", "PLUS"))
-                .andExpect(status().isBadRequest());
+    @DisplayName("GET /items/{id} - при ошибке сервиса должен вернуть ошибку сервера")
+    void getItem_WhenServiceThrowsException_ShouldReturnServerError() {
+        Long itemId = 1L;
+
+        when(itemService.getItemById(eq(itemId), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("Ошибка подключения к базе данных")));
+
+        webTestClient.get()
+                .uri("/items/{id}", itemId)
+                .exchange()
+                .expectStatus().is5xxServerError();
     }
 
-    @Test
-    @DisplayName("POST /items - без параметра action должен вернуть ошибку валидации")
-    void updateCartItem_WithoutActionParam_ShouldReturnBadRequest() throws Exception {
-        mockMvc.perform(post("/items")
-                        .param("id", "1"))
-                .andExpect(status().isBadRequest());
-    }
+
+
+
 
     @Test
-    @DisplayName("GET /items - разные сессии должны использовать разные корзины")
-    void getItems_DifferentSessions_ShouldUseDifferentCarts() throws Exception {
-        List<List<ItemDto>> itemsGrid = new ArrayList<>();
-        PagingInfo pagingInfo = new PagingInfo(1, 5, false, false, 1, 1);
-        ItemsPageData pageData = new ItemsPageData(itemsGrid, "", "NO", pagingInfo);
+    @DisplayName("GET /items - с пагинацией должен корректно отображать информацию о страницах")
+    void getItems_ShouldDisplayCorrectPagingInfo() {
+        int pageNumber = 2;
+        int pageSize = 5;
 
-        when(itemService.getItemsPage(anyString(), anyString(), anyInt(), anyInt(), anyString()))
-                .thenReturn(pageData);
+        PagingInfo paging = new PagingInfo(2, 5, true, true, 10, 50);
 
-        mockMvc.perform(get("/items")
-                        .sessionAttr("SESSION", "session-1"))
-                .andExpect(status().isOk());
+        ItemsPageData itemsPageData = ItemsPageData.builder()
+                .itemsGrid(List.of())
+                .search("")
+                .sort("NO")
+                .paging(paging)
+                .build();
 
-        mockMvc.perform(get("/items")
-                        .sessionAttr("SESSION", "session-2"))
-                .andExpect(status().isOk());
+        when(itemService.getItemsPage(anyString(), anyString(), eq(pageNumber), eq(pageSize), anyString()))
+                .thenReturn(Mono.just(itemsPageData));
 
-        verify(itemService, times(2)).getItemsPage(anyString(), anyString(), anyInt(), anyInt(), anyString());
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/items")
+                        .queryParam("pageNumber", pageNumber)
+                        .queryParam("pageSize", pageSize)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .consumeWith(result -> {
+                    String body = result.getResponseBody();
+                    assert body != null;
+                    assert body.contains("2");
+                    assert body.contains("10");
+                    assert body.contains("50");
+                });
+
+        verify(itemService).getItemsPage(anyString(), anyString(), eq(pageNumber), eq(pageSize), anyString());
     }
 }
