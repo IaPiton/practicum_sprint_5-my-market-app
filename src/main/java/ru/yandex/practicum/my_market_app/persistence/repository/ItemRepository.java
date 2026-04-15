@@ -11,46 +11,26 @@ import ru.yandex.practicum.my_market_app.persistence.entity.Item;
 @Repository
 public interface ItemRepository extends R2dbcRepository<Item, Long> {
 
-    @Query("SELECT * FROM items OFFSET :offset LIMIT :limit")
-    Flux<Item> findAllNoSort(@Param("offset") long offset, @Param("limit") int limit);
+    @Query(value = """
+    SELECT * FROM items
+    WHERE (cast(:search as text) IS NULL OR
+           title ILIKE '%' || :search || '%' OR
+           description ILIKE '%' || :search || '%')
+    ORDER BY
+        CASE WHEN :sortColumn = 'title' THEN title END ASC,
+        CASE WHEN :sortColumn = 'price' THEN price END ASC,
+        title ASC
+    LIMIT :limit OFFSET :offset
+    """)
+    Flux<Item> searchAllItems(@Param("search") String search,
+                              @Param("sortColumn") String sortColumn,
+                              @Param("limit") int limit,
+                              @Param("offset") long offset);
 
-    @Query("SELECT * FROM items ORDER BY title ASC OFFSET :offset LIMIT :limit")
-    Flux<Item> findAllByTitleAsc(@Param("offset") long offset, @Param("limit") int limit);
-
-    @Query("SELECT * FROM items ORDER BY title DESC OFFSET :offset LIMIT :limit")
-    Flux<Item> findAllByTitleDesc(@Param("offset") long offset, @Param("limit") int limit);
-
-    @Query("SELECT * FROM items ORDER BY price ASC OFFSET :offset LIMIT :limit")
-    Flux<Item> findAllByPriceAsc(@Param("offset") long offset, @Param("limit") int limit);
-
-    @Query("SELECT * FROM items ORDER BY price DESC OFFSET :offset LIMIT :limit")
-    Flux<Item> findAllByPriceDesc(@Param("offset") long offset, @Param("limit") int limit);
-
-    @Query("SELECT * FROM items WHERE LOWER(title) LIKE LOWER(:search) OFFSET :offset LIMIT :limit")
-    Flux<Item> searchByTitleNoSort(@Param("search") String search,
-                                   @Param("offset") long offset,
-                                   @Param("limit") int limit);
-
-    @Query("SELECT * FROM items WHERE LOWER(title) LIKE LOWER(:search) ORDER BY title ASC OFFSET :offset LIMIT :limit")
-    Flux<Item> searchByTitleAsc(@Param("search") String search,
-                                @Param("offset") long offset,
-                                @Param("limit") int limit);
-
-    @Query("SELECT * FROM items WHERE LOWER(title) LIKE LOWER(:search) ORDER BY title DESC OFFSET :offset LIMIT :limit")
-    Flux<Item> searchByTitleDesc(@Param("search") String search,
-                                 @Param("offset") long offset,
-                                 @Param("limit") int limit);
-
-    @Query("SELECT * FROM items WHERE LOWER(title) LIKE LOWER(:search) ORDER BY price ASC OFFSET :offset LIMIT :limit")
-    Flux<Item> searchByPriceAsc(@Param("search") String search,
-                                @Param("offset") long offset,
-                                @Param("limit") int limit);
-
-    @Query("SELECT * FROM items WHERE LOWER(title) LIKE LOWER(:search) ORDER BY price DESC OFFSET :offset LIMIT :limit")
-    Flux<Item> searchByPriceDesc(@Param("search") String search,
-                                 @Param("offset") long offset,
-                                 @Param("limit") int limit);
-
-    @Query("SELECT COUNT(*) FROM items WHERE LOWER(title) LIKE LOWER(:search)")
+    @Query("""
+            SELECT COUNT(*) FROM items WHERE (cast(:search as text) IS NULL OR
+            title ILIKE '%' || :search || '%' OR
+            description ILIKE '%' || :search || '%')
+            """)
     Mono<Long> countBySearch(@Param("search") String search);
 }

@@ -34,28 +34,17 @@ public class ItemServiceImpl implements ItemService {
         long offset = pageable.getOffset();
         int limit = pageable.getPageSize();
 
-        String sortType = (sort == null || sort.equals("NO")) ? "NO" : sort;
-        boolean isAscending = true;
-
-        if (sortType.contains("_")) {
-            String[] parts = sortType.split("_");
-            sortType = parts[0];
-            isAscending = parts.length == 1 || parts[1].equals("ASC");
-        }
-
-        final String finalSortType = sortType;
-        final boolean finalIsAscending = isAscending;
+        String sortColumn = getSortColumn(sort);
 
         Flux<Item> itemsFlux;
         Mono<Long> countMono;
 
+        itemsFlux = itemRepository.searchAllItems(search, sortColumn, limit, offset);
+
         if (search == null || search.trim().isEmpty()) {
-            itemsFlux = getItemsFluxNoSearch(finalSortType, finalIsAscending, offset, limit);
             countMono = itemRepository.count();
         } else {
-            String searchPattern = "%" + search.trim() + "%";
-            itemsFlux = getItemsFluxWithSearch(searchPattern, finalSortType, finalIsAscending, offset, limit);
-            countMono = itemRepository.countBySearch(searchPattern);
+            countMono = itemRepository.countBySearch(search);
         }
 
         return itemsFlux.collectList()
@@ -154,27 +143,11 @@ public class ItemServiceImpl implements ItemService {
 
     }
 
-    private Flux<Item> getItemsFluxNoSearch(String sortType, boolean ascending, long offset, int limit) {
-        return switch (sortType) {
-            case "ALPHA" -> ascending
-                    ? itemRepository.findAllByTitleAsc(offset, limit)
-                    : itemRepository.findAllByTitleDesc(offset, limit);
-            case "PRICE" -> ascending
-                    ? itemRepository.findAllByPriceAsc(offset, limit)
-                    : itemRepository.findAllByPriceDesc(offset, limit);
-            default -> itemRepository.findAllNoSort(offset, limit);
-        };
-    }
-
-    private Flux<Item> getItemsFluxWithSearch(String searchPattern, String sortType, boolean ascending, long offset, int limit) {
-        return switch (sortType) {
-            case "ALPHA" -> ascending
-                    ? itemRepository.searchByTitleAsc(searchPattern, offset, limit)
-                    : itemRepository.searchByTitleDesc(searchPattern, offset, limit);
-            case "PRICE" -> ascending
-                    ? itemRepository.searchByPriceAsc(searchPattern, offset, limit)
-                    : itemRepository.searchByPriceDesc(searchPattern, offset, limit);
-            default -> itemRepository.searchByTitleNoSort(searchPattern, offset, limit);
+    private String getSortColumn(String sort) {
+        return switch (sort) {
+            case "ALPHA" -> "title";
+            case "PRICE" -> "price";
+            default -> "id";
         };
     }
 }
