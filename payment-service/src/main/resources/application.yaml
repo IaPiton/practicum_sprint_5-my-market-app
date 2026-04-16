@@ -1,3 +1,6 @@
 server:
   port: 8081
 
+service:
+  default-balance: ${DEFAULT_BALANCE:5000}
+

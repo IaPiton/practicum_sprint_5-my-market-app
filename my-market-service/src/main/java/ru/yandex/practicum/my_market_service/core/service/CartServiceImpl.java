@@ -14,7 +14,10 @@ import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.repository.CartItemRepository;
 import ru.yandex.practicum.my_market_service.persistence.repository.CartRepository;
 import ru.yandex.practicum.my_market_service.persistence.repository.ItemRepository;
+import yandex.practicum.market.client.api.PaymentApi;
+import yandex.practicum.market.client.model.BalanceResponse;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -29,6 +32,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final CartMapper cartMapper;
     private final CartRepository cartRepository;
+    private final PaymentApi paymentApi;
 
     @Override
     public Mono<Long> getCurrentCartId(String sessionId) {
@@ -119,6 +123,14 @@ public class CartServiceImpl implements CartService {
                                     })
                                     .sum());
                 });
+    }
+
+    @Override
+    public Mono<BigDecimal> getBalance() {
+        return paymentApi.getBalance()
+                .map(BalanceResponse::getBalance)
+                .onErrorResume(error ->
+                        Mono.just(BigDecimal.ONE.negate()));
     }
 
     private Mono<Void> handlePlusAction(Cart cart, CartItem cartItem) {

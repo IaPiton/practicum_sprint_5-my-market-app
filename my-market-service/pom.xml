@@ -106,6 +106,10 @@
                             <invokerPackage>yandex.practicum.market.client</invokerPackage>
                             <output>${project.build.directory}/generated-sources/openapi-client</output>
                             <generateSupportingFiles>true</generateSupportingFiles>
+                            <generateApiTests>false</generateApiTests>      <!-- Не генерировать API тесты -->
+                            <generateModelTests>false</generateModelTests>    <!-- Не генерировать Model тесты -->
+                            <generateApiDocumentation>true</generateApiDocumentation>  <!-- Генерировать документацию API -->
+                            <generateModelDocumentation>true</generateModelDocumentation> <!-- Генерировать документацию моделей -->
                             <addCompileSourceRoot>true</addCompileSourceRoot>
                             <skipValidateSpec>false</skipValidateSpec>
                             <configOptions>

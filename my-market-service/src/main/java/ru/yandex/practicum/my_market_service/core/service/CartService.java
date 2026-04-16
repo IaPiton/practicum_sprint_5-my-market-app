@@ -5,6 +5,7 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 public interface CartService {
@@ -17,4 +18,6 @@ public interface CartService {
     Flux<CartItemDto> getCartItemsWithDetails(Long cartId);
 
     Mono<Long> getCartTotal(Long cartId);
+
+    Mono<BigDecimal> getBalance();
 }

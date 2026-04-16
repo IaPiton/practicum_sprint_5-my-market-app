@@ -46,10 +46,38 @@
         </div>
         <div class="row p-2">
             <div class="col">
+                <div th:if="${balance != null and balance < 0}" class="alert alert-danger mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Сервис оплаты временно недоступен. Пожалуйста, попробуйте позже.
+                </div>
+
+                <div th:if="${balance != null and balance >= 0 and balance < total}" class="alert alert-warning mb-3" role="alert">
+                    <i class="bi bi-credit-card"></i>
+                    Недостаточно средств на балансе для совершения покупки.
+                    <br/>
+                    <small>Ваш баланс: <strong th:text="${balance} + ' руб.'"></strong></small>
+                </div>
+
+                 <div th:if="${balance != null and balance >= total}" class="alert alert-success mb-3" role="alert">
+                    <i class="bi bi-wallet2"></i>
+                    Ваш баланс: <strong th:text="${balance} + ' руб.'"></strong>
+                </div>
+
                 <form action="/buy" method="post" th:if="${!items.isEmpty()}">
                     <div class="hstack gap-3">
                         <h2 th:text="'Итого: '+${total}+' руб.'"/>
-                        <button class="btn btn-warning ms-auto">Купить</button>
+
+                        <button class="btn ms-auto"
+                                th:classappend="${balance != null and balance >= total} ? 'btn-warning' : 'btn-secondary'"
+                                th:disabled="${balance == null or balance < 0 or balance < total}"
+                                type="submit">
+                    <span th:if="${balance == null or balance < 0 or balance < total}">
+                        <i class="bi bi-cart-x"></i> Купить
+                    </span>
+                            <span th:unless="${balance == null or balance < 0 or balance < total}">
+                        <i class="bi bi-cart-check"></i> Купить
+                    </span>
+                        </button>
                     </div>
                 </form>
             </div>

@@ -22,7 +22,8 @@ public class CartController {
     @GetMapping("/items")
     public Mono<String> getCartItems(Model model,
                                      WebSession session) {
-        return session.save()
+        return cartService.getBalance()
+                .doOnNext(balance -> model.addAttribute("balance", balance))
                 .then(cartService.getCurrentCartId(session.getId())
                         .flatMap(cartId ->
                                 cartService.getCartItemsWithDetails(cartId)
@@ -41,19 +42,21 @@ public class CartController {
             WebSession session,
             @ModelAttribute ItemUpdateRequest request,
             Model model) {
-        return cartService.getCurrentCartId(session.getId())
-                .flatMap(cartId ->
-                        itemService.getItemEntityById(request.getId())
-                                .flatMap(item ->
-                                        cartService.updateItemCount(cartId, item, request.getAction())
-                                                .then(Mono.zip(
-                                                        cartService.getCartItemsWithDetails(cartId).collectList(),
-                                                        cartService.getCartTotal(cartId)
-                                                )))).doOnNext(tuple -> {
-                    model.addAttribute("items", tuple.getT1());
-                    model.addAttribute("total", tuple.getT2());
-                })
-                .thenReturn("cart");
+        return cartService.getBalance()
+                .doOnNext(balance -> model.addAttribute("balance", balance))
+                .then(cartService.getCurrentCartId(session.getId())
+                        .flatMap(cartId ->
+                                itemService.getItemEntityById(request.getId())
+                                        .flatMap(item ->
+                                                cartService.updateItemCount(cartId, item, request.getAction())
+                                                        .then(Mono.zip(
+                                                                cartService.getCartItemsWithDetails(cartId).collectList(),
+                                                                cartService.getCartTotal(cartId)
+                                                        )))).doOnNext(tuple -> {
+                            model.addAttribute("items", tuple.getT1());
+                            model.addAttribute("total", tuple.getT2());
+                        })
+                        .thenReturn("cart"));
 
     }
 }
