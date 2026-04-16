@@ -9,7 +9,6 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.model.ItemUpdateRequest;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
 import ru.yandex.practicum.my_market_service.core.service.ItemCacheService;
-import ru.yandex.practicum.my_market_service.core.service.ItemService;
 
 
 @Controller

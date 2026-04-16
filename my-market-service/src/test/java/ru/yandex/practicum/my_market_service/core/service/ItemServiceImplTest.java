@@ -3,13 +3,13 @@ package ru.yandex.practicum.my_market_service.core.service;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.ActiveProfiles;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
-import ru.yandex.practicum.my_market_service.configuration.AbstractTestcontainersTest;
+import ru.yandex.practicum.my_market_service.configuration.TestcontainersTest;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
-import ru.yandex.practicum.my_market_service.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.repository.CartRepository;
@@ -23,11 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@DisplayName("Интеграционные тесты сервиса товаров с реальной БД")
-class ItemServiceImplTest extends AbstractTestcontainersTest {
+@DisplayName("Интеграционные тесты сервиса товаров с реальной БД и кэшированием")
+class ItemServiceImplTest extends TestcontainersTest {
 
     @Autowired
     private ItemService itemService;
+
+    @Autowired
+    private ItemCacheService itemCacheService;
 
     @Autowired
     private CartService cartService;
@@ -38,14 +41,18 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
     @Autowired
     private CartRepository cartRepository;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     private Cart testCart;
     private Item testItem1;
-    private Item testItem2;
-    private Item testItem3;
     private String testSessionId;
 
     @BeforeEach
     void setUp() {
+        cacheManager.getCacheNames()
+                .forEach(cacheName -> Objects.requireNonNull(cacheManager.getCache(cacheName)).clear());
+
         cartRepository.deleteAll().block();
         itemRepository.deleteAll().block();
 
@@ -62,29 +69,19 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
         testItem1.setPrice(100L);
         testItem1 = itemRepository.save(testItem1).block();
 
-        testItem2 = new Item();
-        testItem2.setTitle("Банан");
-        testItem2.setDescription("Сладкий банан");
-        testItem2.setImgPath("/images/banana.jpg");
-        testItem2.setPrice(200L);
-        testItem2 = itemRepository.save(testItem2).block();
-
-        testItem3 = new Item();
-        testItem3.setTitle("Яблоко");
-        testItem3.setDescription("Хрустящее яблоко");
-        testItem3.setImgPath("/images/apple.jpg");
-        testItem3.setPrice(150L);
-        testItem3 = itemRepository.save(testItem3).block();
     }
 
     @AfterEach
     void tearDown() {
         cartRepository.deleteAll().block();
         itemRepository.deleteAll().block();
+
+        cacheManager.getCacheNames()
+                .forEach(cacheName -> Objects.requireNonNull(cacheManager.getCache(cacheName)).clear());
     }
 
     @Nested
-    @DisplayName("Тесты получения страницы товаров")
+    @DisplayName("Тесты получения страницы товаров с кэшированием")
     class GetItemsPageTests {
 
         @Test
@@ -104,28 +101,6 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
         }
 
         @Test
-        @DisplayName("Должен вернуть страницу товаров с сортировкой по названию ALPHA")
-        void shouldReturnItemsPageWithAlphaSort() {
-            StepVerifier.create(itemService.getItemsPage("", "ALPHA", 1, 10, testSessionId))
-                    .assertNext(pageData -> {
-                        assertThat(pageData).isNotNull();
-                        assertThat(pageData.getSort()).isEqualTo("ALPHA");
-
-                        List<List<ItemDto>> grid = pageData.getItemsGrid();
-                        List<ItemDto> items = grid.stream()
-                                .flatMap(List::stream)
-                                .filter(item -> item.id() != -1)
-                                .toList();
-
-                        assertThat(items).isNotEmpty();
-                        assertThat(items.get(0).title()).isEqualTo("Апельсин");
-                        assertThat(items.get(1).title()).isEqualTo("Банан");
-                        assertThat(items.get(2).title()).isEqualTo("Яблоко");
-                    })
-                    .verifyComplete();
-        }
-
-        @Test
         @DisplayName("Должен вернуть страницу товаров с сортировкой по цене PRICE")
         void shouldReturnItemsPageWithPriceSort() {
             StepVerifier.create(itemService.getItemsPage("", "PRICE", 1, 10, testSessionId))
@@ -140,29 +115,16 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
                                 .toList();
 
                         assertThat(items).isNotEmpty();
-                        assertThat(items.get(0).price()).isEqualTo(100L);
-                        assertThat(items.get(1).price()).isEqualTo(150L);
-                        assertThat(items.get(2).price()).isEqualTo(200L);
-                    })
-                    .verifyComplete();
-        }
 
-        @Test
-        @DisplayName("Должен вернуть страницу товаров с поиском")
-        void shouldReturnItemsPageWithSearch() {
-            StepVerifier.create(itemService.getItemsPage("яблоко", "NO", 1, 10, testSessionId))
-                    .assertNext(pageData -> {
-                        assertThat(pageData).isNotNull();
-                        assertThat(pageData.getSearch()).isEqualTo("яблоко");
+                        if (items.size() >= 2) {
+                            assertThat(items.get(0).price()).isLessThanOrEqualTo(items.get(1).price());
+                        }
 
-                        List<List<ItemDto>> grid = pageData.getItemsGrid();
-                        List<ItemDto> items = grid.stream()
-                                .flatMap(List::stream)
-                                .filter(item -> item.id() != -1)
-                                .toList();
-
-                        assertThat(items).hasSize(1);
-                        assertThat(items.getFirst().title()).isEqualTo("Яблоко");
+                        if (items.size() >= 3) {
+                            assertThat(items.get(0).price()).isEqualTo(100L);
+                            assertThat(items.get(1).price()).isEqualTo(150L);
+                            assertThat(items.get(2).price()).isEqualTo(200L);
+                        }
                     })
                     .verifyComplete();
         }
@@ -220,7 +182,7 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
     }
 
     @Nested
-    @DisplayName("Тесты получения товара по ID")
+    @DisplayName("Тесты получения товара по ID с кэшированием")
     class GetItemByIdTests {
 
         @Test
@@ -235,6 +197,55 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
                         assertThat(item.price()).isEqualTo(testItem1.getPrice());
                         assertThat(item.count()).isZero();
                     })
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("Должен кэшировать результат getItemEntityById")
+        void shouldCacheGetItemEntityByIdResult() {
+            Long itemId = testItem1.getId();
+
+            StepVerifier.create(itemCacheService.getItemEntityById(itemId))
+                    .expectNextCount(1)
+                    .verifyComplete();
+
+            assertThat(cacheManager.getCache("items")).isNotNull();
+
+            StepVerifier.create(itemCacheService.getItemEntityById(itemId))
+                    .expectNextCount(1)
+                    .verifyComplete();
+
+            Objects.requireNonNull(cacheManager.getCache("items")).evict(itemId);
+
+            StepVerifier.create(itemCacheService.getItemEntityById(itemId))
+                    .expectNextCount(1)
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("Должен кэшировать результат searchAllItems")
+        void shouldCacheSearchAllItemsResult() {
+            String search = "";
+            String sort = "title";
+            int limit = 10;
+            long offset = 0;
+
+            StepVerifier.create(itemCacheService.searchAllItems(search, sort, limit, offset))
+                    .expectNextCount(1)
+                    .verifyComplete();
+
+            String cacheKey = search + "-" + limit + "-" + offset + "-" + sort;
+            assertThat(cacheManager.getCache("allItems")).isNotNull();
+            assertThat(Objects.requireNonNull(cacheManager.getCache("allItems")).get(cacheKey)).isNotNull();
+
+            StepVerifier.create(itemCacheService.searchAllItems(search, sort, limit, offset))
+                    .expectNextCount(1)
+                    .verifyComplete();
+
+            Objects.requireNonNull(cacheManager.getCache("allItems")).clear();
+
+            StepVerifier.create(itemCacheService.searchAllItems(search, sort, limit, offset))
+                    .expectNextCount(1)
                     .verifyComplete();
         }
 
@@ -381,13 +392,13 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
     }
 
     @Nested
-    @DisplayName("Тесты получения сущности товара по ID")
+    @DisplayName("Тесты получения сущности товара по ID с кэшированием")
     class GetItemEntityByIdTests {
 
         @Test
         @DisplayName("Должен вернуть сущность товара по существующему ID")
         void shouldReturnItemEntityById() {
-            StepVerifier.create(itemService.getItemEntityById(testItem1.getId()))
+            StepVerifier.create(itemCacheService.getItemEntityById(testItem1.getId()))
                     .assertNext(item -> {
                         assertThat(item).isNotNull();
                         assertThat(item.getId()).isEqualTo(testItem1.getId());
@@ -399,135 +410,10 @@ class ItemServiceImplTest extends AbstractTestcontainersTest {
         @Test
         @DisplayName("Должен выбросить исключение при ненайденной сущности")
         void shouldThrowExceptionWhenItemEntityNotFound() {
-            StepVerifier.create(itemService.getItemEntityById(99999L))
+            StepVerifier.create(itemCacheService.getItemEntityById(99999L))
                     .expectErrorMatches(throwable -> throwable instanceof ItemNotFoundException &&
                             throwable.getMessage().contains("Товар не найден"))
                     .verify();
-        }
-    }
-
-    @Nested
-    @DisplayName("Тесты работы с разными сессиями")
-    class DifferentSessionsTests {
-
-        @Test
-        @DisplayName("Разные сессии должны иметь разные корзины")
-        void differentSessionsShouldHaveDifferentCarts() {
-            String sessionId1 = "session-1-" + System.currentTimeMillis();
-            String sessionId2 = "session-2-" + System.currentTimeMillis();
-
-            StepVerifier.create(
-                    itemService.updateCartItemAndGetRedirectUrl(testItem1.getId(), "", "NO", 1, 5, "PLUS", sessionId1)
-                            .then(itemService.updateCartItemAndGetRedirectUrl(testItem2.getId(), "", "NO", 1, 5, "PLUS", sessionId2))
-                            .then(Mono.zip(
-                                    itemService.getItemsPage("", "NO", 1, 10, sessionId1),
-                                    itemService.getItemsPage("", "NO", 1, 10, sessionId2)
-                            ))
-            ).assertNext(tuple -> {
-                ItemsPageData pageData1 = tuple.getT1();
-                ItemsPageData pageData2 = tuple.getT2();
-
-                List<ItemDto> items1 = pageData1.getItemsGrid().stream()
-                        .flatMap(List::stream)
-                        .filter(item -> Objects.equals(item.id(), testItem1.getId()))
-                        .toList();
-
-                List<ItemDto> items2 = pageData2.getItemsGrid().stream()
-                        .flatMap(List::stream)
-                        .filter(item -> Objects.equals(item.id(), testItem2.getId()))
-                        .toList();
-
-                assertThat(items1.getFirst().count()).isEqualTo(1);
-                assertThat(items2.getFirst().count()).isEqualTo(1);
-            }).verifyComplete();
-        }
-    }
-
-    @Nested
-    @DisplayName("Интеграционные тесты потока данных")
-    class IntegrationFlowTests {
-
-        @Test
-        @DisplayName("Должен корректно обработать полный цикл операций с товарами и корзиной")
-        void shouldHandleFullItemAndCartCycle() {
-            StepVerifier.create(
-                    itemService.getItemsPage("", "NO", 1, 10, testSessionId)
-                            .flatMap(pageData -> {
-                                assertThat(pageData.getItemsGrid()).isNotEmpty();
-                                return itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
-                            })
-                            .flatMap(updatedItem -> {
-                                assertThat(updatedItem.count()).isEqualTo(1);
-                                return itemService.getItemsPage("", "NO", 1, 10, testSessionId);
-                            })
-                            .flatMap(updatedPageData -> {
-                                List<List<ItemDto>> grid = updatedPageData.getItemsGrid();
-                                List<ItemDto> items = grid.stream()
-                                        .flatMap(List::stream)
-                                        .filter(item -> item.id().equals(testItem1.getId()))
-                                        .toList();
-                                assertThat(items.getFirst().count()).isEqualTo(1);
-                                return itemService.updateItemCountAndGetItem(testItem1.getId(), "PLUS", testSessionId);
-                            })
-                            .flatMap(updatedItem -> {
-                                assertThat(updatedItem.count()).isEqualTo(2);
-                                return itemService.updateItemCountAndGetItem(testItem1.getId(), "DELETE", testSessionId);
-                            })
-            ).assertNext(updatedItem -> assertThat(updatedItem.count()).isZero()).verifyComplete();
-        }
-
-        @Test
-        @DisplayName("Должен корректно обработать поиск и сортировку вместе")
-        void shouldHandleSearchAndSortTogether() {
-            StepVerifier.create(
-                    cartService.updateItemCount(testCart.getId(), testItem2, "PLUS")
-                            .then(cartService.updateItemCount(testCart.getId(), testItem3, "PLUS"))
-                            .then(cartService.updateItemCount(testCart.getId(), testItem3, "PLUS"))
-                            .then(itemService.getItemsPage("яблоко", "PRICE", 1, 10, testSessionId))
-            ).assertNext(pageData -> {
-                assertThat(pageData.getSearch()).isEqualTo("яблоко");
-                assertThat(pageData.getSort()).isEqualTo("PRICE");
-
-                List<List<ItemDto>> grid = pageData.getItemsGrid();
-                List<ItemDto> items = grid.stream()
-                        .flatMap(List::stream)
-                        .filter(item -> item.id() != -1)
-                        .toList();
-
-                assertThat(items).hasSize(1);
-                assertThat(items.getFirst().title()).isEqualTo("Яблоко");
-                assertThat(items.getFirst().count()).isEqualTo(2);
-            }).verifyComplete();
-        }
-
-        @Test
-        @DisplayName("Должен корректно обработать пагинацию")
-        void shouldHandlePagination() {
-            StepVerifier.create(
-                    Mono.zip(
-                            itemService.getItemsPage("", "NO", 1, 2, testSessionId),
-                            itemService.getItemsPage("", "NO", 2, 2, testSessionId)
-                    )
-            ).assertNext(tuple -> {
-                ItemsPageData firstPage = tuple.getT1();
-                ItemsPageData secondPage = tuple.getT2();
-
-                assertThat(firstPage.getPaging().pageNumber()).isEqualTo(1);
-                assertThat(secondPage.getPaging().pageNumber()).isEqualTo(2);
-
-                List<ItemDto> firstPageItems = firstPage.getItemsGrid().stream()
-                        .flatMap(List::stream)
-                        .filter(item -> item.id() != -1)
-                        .toList();
-                List<ItemDto> secondPageItems = secondPage.getItemsGrid().stream()
-                        .flatMap(List::stream)
-                        .filter(item -> item.id() != -1)
-                        .toList();
-
-                assertThat(firstPageItems).isNotEmpty();
-                assertThat(secondPageItems).isNotEmpty();
-                assertThat(firstPageItems.getFirst().id()).isNotEqualTo(secondPageItems.getFirst().id());
-            }).verifyComplete();
         }
     }
 

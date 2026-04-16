@@ -1,5 +1,6 @@
 package ru.yandex.practicum.my_market_service.configuration;
 
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -10,7 +11,7 @@ import reactor.core.publisher.Mono;
 public class SessionInitializationFilter implements WebFilter {
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+    public @NotNull Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         return exchange.getSession()
                 .flatMap(session -> {
                     if (!session.getAttributes().containsKey("initialized")) {

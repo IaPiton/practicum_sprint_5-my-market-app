@@ -13,9 +13,11 @@ import ru.yandex.practicum.my_market_service.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
+import ru.yandex.practicum.my_market_service.core.service.ItemCacheService;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +36,9 @@ class CartControllerTest {
 
     @MockitoBean
     private ItemService itemService;
+
+    @MockitoBean
+    private ItemCacheService itemCacheService;
 
     @Test
     @DisplayName("GET /cart/items - должен вернуть страницу корзины с товарами")
@@ -61,6 +66,7 @@ class CartControllerTest {
         );
         long total = 350L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(items));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
@@ -91,6 +97,7 @@ class CartControllerTest {
         List<CartItemDto> emptyItems = Collections.emptyList();
         long total = 0L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(emptyItems));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
@@ -134,8 +141,9 @@ class CartControllerTest {
         );
         long total = 300L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
-        when(itemService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
+        when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(action))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(updatedItems));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
@@ -155,7 +163,7 @@ class CartControllerTest {
                 });
 
         verify(cartService).getCurrentCartId(anyString());
-        verify(itemService).getItemEntityById(itemId);
+        verify(itemCacheService).getItemEntityById(itemId);
         verify(cartService).updateItemCount(cartId, item, action);
         verify(cartService).getCartItemsWithDetails(cartId);
         verify(cartService).getCartTotal(cartId);
@@ -184,8 +192,9 @@ class CartControllerTest {
         );
         long total = 100L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
-        when(itemService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
+        when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(action))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(updatedItems));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
@@ -222,8 +231,9 @@ class CartControllerTest {
         List<CartItemDto> updatedItems = Collections.emptyList();
         long total = 0L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
-        when(itemService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
+        when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(action))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(updatedItems));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
@@ -251,6 +261,7 @@ class CartControllerTest {
         long itemId = 1L;
         String action = "PLUS";
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString()))
                 .thenReturn(Mono.error(new CartNotFoundException("Корзина не найдена")));
 
@@ -262,7 +273,7 @@ class CartControllerTest {
                 .expectStatus().isBadRequest();
 
         verify(cartService).getCurrentCartId(anyString());
-        verify(itemService, never()).getItemEntityById(anyLong());
+        verify(itemCacheService, never()).getItemEntityById(anyLong());
     }
 
     @Test
@@ -272,8 +283,9 @@ class CartControllerTest {
         Long invalidItemId = 999L;
         String action = "PLUS";
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
-        when(itemService.getItemEntityById(invalidItemId))
+        when(itemCacheService.getItemEntityById(invalidItemId))
                 .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
 
         webTestClient.post()
@@ -283,7 +295,7 @@ class CartControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        verify(itemService).getItemEntityById(invalidItemId);
+        verify(itemCacheService).getItemEntityById(invalidItemId);
         verify(cartService, never()).updateItemCount(anyLong(), any(Item.class), anyString());
     }
 
@@ -297,8 +309,9 @@ class CartControllerTest {
         Item item = new Item();
         item.setId(itemId);
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
-        when(itemService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
+        when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(invalidAction)))
                 .thenReturn(Mono.error(new RuntimeException("Неизвестное действие: " + invalidAction)));
 
@@ -335,6 +348,7 @@ class CartControllerTest {
         );
         long total = 850L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(items));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
@@ -374,8 +388,9 @@ class CartControllerTest {
         );
         long totalAfterPlus = 300L;
 
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
-        when(itemService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
+        when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq("PLUS"))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(itemsAfterPlus));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(totalAfterPlus));
@@ -416,7 +431,7 @@ class CartControllerTest {
                 });
 
         verify(cartService, times(2)).getCurrentCartId(anyString());
-        verify(itemService, times(2)).getItemEntityById(itemId);
+        verify(itemCacheService, times(2)).getItemEntityById(itemId);
         verify(cartService).updateItemCount(cartId, item, "PLUS");
         verify(cartService).updateItemCount(cartId, item, "MINUS");
     }
@@ -440,6 +455,7 @@ class CartControllerTest {
         when(cartService.getCurrentCartId(anyString()))
                 .thenReturn(Mono.just(cartId1))
                 .thenReturn(Mono.just(cartId2));
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCartItemsWithDetails(cartId1)).thenReturn(Flux.fromIterable(items1));
         when(cartService.getCartTotal(cartId1)).thenReturn(Mono.just(total1));
         when(cartService.getCartItemsWithDetails(cartId2)).thenReturn(Flux.fromIterable(items2));

@@ -1,6 +1,7 @@
 package ru.yandex.practicum.my_market_service.configuration;
 
 
+import com.redis.testcontainers.RedisContainer;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -8,9 +9,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(R2dbcTestConfiguration.class)
+@Import(TestConfiguration.class)
 @ActiveProfiles("test")
-public abstract class PostgresTestcontainersTest {
+public abstract class TestcontainersTest {
 
     private static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
 
@@ -31,5 +32,12 @@ public abstract class PostgresTestcontainersTest {
         System.setProperty("spring.r2dbc.password", POSTGRES_CONTAINER.getPassword());
         System.setProperty("spring.sql.init.mode", "never");
         System.setProperty("spring.r2dbc.initialization-mode", "never");
+    }
+
+    static final RedisContainer redisContainer =
+            new RedisContainer(DockerImageName.parse("redis:7.4.2-bookworm"));
+
+    static {
+        redisContainer.start();
     }
 }

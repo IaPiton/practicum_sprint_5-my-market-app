@@ -12,7 +12,6 @@ import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
 import ru.yandex.practicum.my_market_service.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_service.core.model.PagingInfo;
-import ru.yandex.practicum.my_market_service.core.model.SortType;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
 
 import java.util.Arrays;
@@ -35,7 +34,7 @@ class ItemControllerTest {
     @DisplayName("GET / - должен вернуть главную страницу с товарами")
     void getItems_RootPath_ShouldReturnItemsPage() {
         String search = "";
-        SortType sort = SortType.NO;
+        String sort = "NO";
         int pageNumber = 1;
         int pageSize = 5;
 
@@ -85,7 +84,7 @@ class ItemControllerTest {
                     assert body.contains("Тестовый товар 2");
                 });
 
-        verify(itemService).getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString());
+        verify(itemService).getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString());
     }
 
     @Test

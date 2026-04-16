@@ -7,7 +7,7 @@ import org.springframework.test.context.ActiveProfiles;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
-import ru.yandex.practicum.my_market_service.configuration.AbstractTestcontainersTest;
+import ru.yandex.practicum.my_market_service.configuration.TestcontainersTest;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
 import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("Интеграционные тесты сервиса корзины с реальной БД")
-class CartServiceImplTest extends AbstractTestcontainersTest {
+class CartServiceImplTest extends TestcontainersTest {
 
     @Autowired
     private CartService cartService;

@@ -10,7 +10,6 @@ import ru.yandex.practicum.my_market_service.api.handler.PaymentFailedException;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
 import ru.yandex.practicum.my_market_service.core.service.OrderService;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 

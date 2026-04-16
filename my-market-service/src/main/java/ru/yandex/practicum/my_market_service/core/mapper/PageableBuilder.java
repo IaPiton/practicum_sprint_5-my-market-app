@@ -13,12 +13,6 @@ public class PageableBuilder {
     private static final String SORT_TITLE_FIELD = "title";
     private static final String SORT_PRICE_FIELD = "price";
 
-    public Pageable createPageable(int pageNumber, int pageSize, String sort) {
-        int springPageNumber = Math.max(0, pageNumber - 1);
-        Sort sortOrder = buildSort(sort);
-        return PageRequest.of(springPageNumber, pageSize, sortOrder);
-    }
-
     private Sort buildSort(String sort) {
         if (SORT_ALPHA.equalsIgnoreCase(sort)) {
             return Sort.by(SORT_TITLE_FIELD).ascending();
