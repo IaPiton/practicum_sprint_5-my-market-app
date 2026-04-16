@@ -21,7 +21,8 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Mono<Long> makePayment(Mono<PaymentRequest> paymentRequest) {
-        return null;
-    }
+    public Mono<BigDecimal> makePayment(Mono<PaymentRequest> paymentRequest) {
+        return paymentRequest.map(request
+                -> defaultBalance.subtract(request.getSum()));
+        }
 }

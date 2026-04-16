@@ -11,6 +11,8 @@ import ru.yandex.practicum.payment.api.model.BalanceResponse;
 import ru.yandex.practicum.payment.api.model.PaymentRequest;
 import ru.yandex.practicum.payment_service.core.service.PaymentService;
 
+import java.math.BigDecimal;
+
 @Controller
 @RequiredArgsConstructor
 public class PaymentController implements BalanceApi {
@@ -27,12 +29,10 @@ public class PaymentController implements BalanceApi {
             final ServerWebExchange exchange
     ) {
         return paymentService.makePayment(paymentRequest)
-                .flatMap(result -> {
-                    return result <= 0 ? Mono.just(ResponseEntity.ok().build()) :
-                            Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).build());
-
-                });
+                .flatMap(result ->
+                        result.compareTo(BigDecimal.ZERO) < 0
+                        ? Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).build())
+                        : Mono.just(ResponseEntity.ok().build()));
     }
-
 
 }

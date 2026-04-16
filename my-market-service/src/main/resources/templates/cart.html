@@ -46,6 +46,12 @@
         </div>
         <div class="row p-2">
             <div class="col">
+                <div th:if="${paymentError != null}" class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                    <i class="bi bi-exclamation-octagon-fill"></i>
+                    <strong>Ошибка!</strong> <span th:text="${paymentError}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+
                 <div th:if="${balance != null and balance < 0}" class="alert alert-danger mb-3" role="alert">
                     <i class="bi bi-exclamation-triangle-fill"></i>
                     Сервис оплаты временно недоступен. Пожалуйста, попробуйте позже.

@@ -20,7 +20,8 @@ public class CartController {
     private final ItemService itemService;
 
     @GetMapping("/items")
-    public Mono<String> getCartItems(Model model,
+    public Mono<String> getCartItems(@RequestParam(value = "paymentError", required = false) String paymentError,
+                                     Model model,
                                      WebSession session) {
         return cartService.getBalance()
                 .doOnNext(balance -> model.addAttribute("balance", balance))
@@ -33,6 +34,7 @@ public class CartController {
                         .map(tuple -> {
                             model.addAttribute("items", tuple.getT1());
                             model.addAttribute("total", tuple.getT2());
+                            model.addAttribute("paymentError", paymentError);
                             return "cart";
                         }));
     }

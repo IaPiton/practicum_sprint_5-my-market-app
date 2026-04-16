@@ -6,8 +6,13 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.my_market_service.api.handler.PaymentFailedException;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
 import ru.yandex.practicum.my_market_service.core.service.OrderService;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Controller
 @RequestMapping()
@@ -21,7 +26,14 @@ public class OrderController {
     public Mono<String> buy(WebSession session) {
         return cartService.getCurrentCartId(session.getId())
                 .flatMap(orderService::createOrderFromCart)
-                .map(order -> "redirect:/orders/" + order.getId() + "?newOrder=true");
+                .map(order -> {
+                    session.getAttributes().remove("paymentError");
+                    return "redirect:/orders/" + order.getId() + "?newOrder=true";
+                })
+                .onErrorResume(PaymentFailedException.class, error -> {
+                    String encodedError = URLEncoder.encode(error.getMessage(), StandardCharsets.UTF_8);
+                    return Mono.just("redirect:/cart/items?paymentError=" + encodedError);
+                });
     }
 
     @GetMapping("/orders/{id}")

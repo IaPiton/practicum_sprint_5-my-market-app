@@ -4,8 +4,10 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.payment.api.model.BalanceResponse;
 import ru.yandex.practicum.payment.api.model.PaymentRequest;
 
+import java.math.BigDecimal;
+
 public interface PaymentService {
    BalanceResponse getBalance();
 
-    Mono<Long> makePayment(Mono<PaymentRequest> paymentRequest);
+    Mono<BigDecimal> makePayment(Mono<PaymentRequest> paymentRequest);
 }
