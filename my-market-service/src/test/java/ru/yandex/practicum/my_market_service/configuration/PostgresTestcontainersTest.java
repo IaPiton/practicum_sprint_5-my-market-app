@@ -10,7 +10,7 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(R2dbcTestConfiguration.class)
 @ActiveProfiles("test")
-public abstract class AbstractTestcontainersTest {
+public abstract class PostgresTestcontainersTest {
 
     private static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
 

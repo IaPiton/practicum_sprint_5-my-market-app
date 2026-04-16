@@ -1,14 +1,13 @@
 package ru.yandex.practicum.my_market_service.core.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_service.core.mapper.ItemMapper;
 import ru.yandex.practicum.my_market_service.core.mapper.ItemsGridBuilder;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
@@ -27,6 +26,7 @@ public class ItemServiceImpl implements ItemService {
     private final CartService cartService;
     private final ItemMapper itemMapper;
     private final ItemsGridBuilder gridBuilder;
+    private final ItemCacheService itemCacheService;
 
     @Override
     public Mono<ItemsPageData> getItemsPage(String search, String sort, int pageNumber, int pageSize, String sessionId) {
@@ -36,10 +36,10 @@ public class ItemServiceImpl implements ItemService {
 
         String sortColumn = getSortColumn(sort);
 
-        Flux<Item> itemsFlux;
+        Mono<List<Item>> itemsFlux;
         Mono<Long> countMono;
 
-        itemsFlux = itemRepository.searchAllItems(search, sortColumn, limit, offset);
+        itemsFlux = itemCacheService.searchAllItems(search, sortColumn, limit, offset);
 
         if (search == null || search.trim().isEmpty()) {
             countMono = itemRepository.count();
@@ -47,7 +47,7 @@ public class ItemServiceImpl implements ItemService {
             countMono = itemRepository.countBySearch(search);
         }
 
-        return itemsFlux.collectList()
+        return itemsFlux
                 .zipWith(countMono)
                 .flatMap(tuple -> {
                     List<Item> items = tuple.getT1();
@@ -81,7 +81,7 @@ public class ItemServiceImpl implements ItemService {
     public Mono<ItemDto> getItemById(Long itemId, String sessionId) {
         Mono<Map<Long, Integer>> cartItemCountsMono = cartService.getCurrentCartId(sessionId)
                 .flatMap(cartService::getItemCounts);
-        Mono<Item> itemMono = getItemEntityById(itemId);
+        Mono<Item> itemMono = itemCacheService.getItemEntityById(itemId);
         return Mono.zip(cartItemCountsMono, itemMono)
                 .map(tuple ->
                 {
@@ -95,7 +95,7 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public Mono<String> updateCartItemAndGetRedirectUrl(Long itemId, String search, String sort,
                                                         int pageNumber, int pageSize, String action, String sessionId) {
-        return Mono.zip(cartService.getCurrentCartId(sessionId), getItemEntityById(itemId))
+        return Mono.zip(cartService.getCurrentCartId(sessionId), itemCacheService.getItemEntityById(itemId))
                 .flatMap(tuple ->
                 {
                     Long cartId = tuple.getT1();
@@ -120,15 +120,12 @@ public class ItemServiceImpl implements ItemService {
         return "redirect:" + redirectUrl;
     }
 
-    @Override
-    public Mono<Item> getItemEntityById(Long itemId) {
-        return itemRepository.findById(itemId)
-                .switchIfEmpty(Mono.error(new ItemNotFoundException("Товар не найден: " + itemId)));
-    }
+
+
 
     @Override
     public Mono<ItemDto> updateItemCountAndGetItem(Long itemId, String action, String sessionId) {
-        return Mono.zip(cartService.getCurrentCartId(sessionId), getItemEntityById(itemId))
+        return Mono.zip(cartService.getCurrentCartId(sessionId), itemCacheService.getItemEntityById(itemId))
                 .flatMap(tuple -> {
                     Long cartId = tuple.getT1();
                     Item item = tuple.getT2();

@@ -1,6 +1,7 @@
 package ru.yandex.practicum.my_market_service.core.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -52,6 +53,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Cacheable(value = "allOrders", unless = "#result == null")
     public Flux<OrderDto> getAllOrders() {
         return orderRepository.findAllOrderByCreatedAtDesc()
                 .collectList()
@@ -66,6 +68,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Cacheable(value = "orders", key = "#id", unless = "#result == null")
     public Mono<OrderDto> getOrderById(Long id) {
         return orderRepository.findById(id)
                 .switchIfEmpty(Mono.error(new RuntimeException("Заказ не найден: " + id)))

@@ -8,6 +8,7 @@ import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.model.ItemUpdateRequest;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
+import ru.yandex.practicum.my_market_service.core.service.ItemCacheService;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
 
 
@@ -17,7 +18,7 @@ import ru.yandex.practicum.my_market_service.core.service.ItemService;
 public class CartController {
 
     private final CartService cartService;
-    private final ItemService itemService;
+    private final ItemCacheService itemCacheService;
 
     @GetMapping("/items")
     public Mono<String> getCartItems(@RequestParam(value = "paymentError", required = false) String paymentError,
@@ -48,7 +49,7 @@ public class CartController {
                 .doOnNext(balance -> model.addAttribute("balance", balance))
                 .then(cartService.getCurrentCartId(session.getId())
                         .flatMap(cartId ->
-                                itemService.getItemEntityById(request.getId())
+                                itemCacheService.getItemEntityById(request.getId())
                                         .flatMap(item ->
                                                 cartService.updateItemCount(cartId, item, request.getAction())
                                                         .then(Mono.zip(

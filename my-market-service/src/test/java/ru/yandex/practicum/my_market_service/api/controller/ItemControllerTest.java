@@ -12,11 +12,13 @@ import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
 import ru.yandex.practicum.my_market_service.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_service.core.model.PagingInfo;
+import ru.yandex.practicum.my_market_service.core.model.SortType;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
 
 import java.util.Arrays;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @WebFluxTest(ItemController.class)
@@ -33,7 +35,7 @@ class ItemControllerTest {
     @DisplayName("GET / - должен вернуть главную страницу с товарами")
     void getItems_RootPath_ShouldReturnItemsPage() {
         String search = "";
-        String sort = "NO";
+        SortType sort = SortType.NO;
         int pageNumber = 1;
         int pageSize = 5;
 
@@ -63,11 +65,11 @@ class ItemControllerTest {
         ItemsPageData itemsPageData = ItemsPageData.builder()
                 .itemsGrid(itemsGrid)
                 .search(search)
-                .sort(sort)
+                .sort(sort.name())
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString()))
+        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString()))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -114,7 +116,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString()))
+        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString()))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -135,7 +137,7 @@ class ItemControllerTest {
                     assert body.contains("Тестовый товар");
                 });
 
-        verify(itemService).getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString());
+        verify(itemService).getItemsPage(eq(search),any(), eq(pageNumber), eq(pageSize), anyString());
     }
 
     @Test
@@ -161,7 +163,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(defaultSearch), eq(defaultSort), eq(defaultPageNumber), eq(defaultPageSize), anyString()))
+        when(itemService.getItemsPage(eq(defaultSearch), any(), eq(defaultPageNumber), eq(defaultPageSize), anyString()))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -169,7 +171,7 @@ class ItemControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(itemService).getItemsPage(eq(defaultSearch), eq(defaultSort), eq(defaultPageNumber), eq(defaultPageSize), anyString());
+        verify(itemService).getItemsPage(eq(defaultSearch), any(), eq(defaultPageNumber), eq(defaultPageSize), anyString());
     }
 
     @Test
@@ -191,7 +193,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString()))
+        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString()))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -206,7 +208,7 @@ class ItemControllerTest {
                     assert body.contains("0") || body.contains("пуст");
                 });
 
-        verify(itemService).getItemsPage(eq(search), eq(sort), eq(pageNumber), eq(pageSize), anyString());
+        verify(itemService).getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString());
     }
 
     @Test
@@ -459,7 +461,7 @@ class ItemControllerTest {
     @Test
     @DisplayName("GET /items - при ошибке сервиса должен вернуть ошибку сервера")
     void getItems_WhenServiceThrowsException_ShouldReturnServerError() {
-        when(itemService.getItemsPage(anyString(), anyString(), anyInt(), anyInt(), anyString()))
+        when(itemService.getItemsPage(anyString(), any(), anyInt(), anyInt(), anyString()))
                 .thenReturn(Mono.error(new RuntimeException("Ошибка подключения к базе данных")));
 
         webTestClient.get()
@@ -501,7 +503,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(anyString(), anyString(), eq(pageNumber), eq(pageSize), anyString()))
+        when(itemService.getItemsPage(anyString(), any(), eq(pageNumber), eq(pageSize), anyString()))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -521,6 +523,6 @@ class ItemControllerTest {
                     assert body.contains("50");
                 });
 
-        verify(itemService).getItemsPage(anyString(), anyString(), eq(pageNumber), eq(pageSize), anyString());
+        verify(itemService).getItemsPage(anyString(), any(), eq(pageNumber), eq(pageSize), anyString());
     }
 }
