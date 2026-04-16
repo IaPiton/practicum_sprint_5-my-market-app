@@ -64,7 +64,7 @@ class ItemControllerTest {
         ItemsPageData itemsPageData = ItemsPageData.builder()
                 .itemsGrid(itemsGrid)
                 .search(search)
-                .sort(sort.name())
+                .sort(sort)
                 .paging(paging)
                 .build();
 

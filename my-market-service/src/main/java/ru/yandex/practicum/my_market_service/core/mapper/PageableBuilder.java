@@ -1,7 +1,5 @@
 package ru.yandex.practicum.my_market_service.core.mapper;
 
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
