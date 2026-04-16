@@ -1,24 +1,20 @@
 package ru.yandex.practicum.my_market_app.persistence.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
-
-import java.util.List;
-import java.util.Optional;
 
 
 @Repository
-public interface CartItemRepository extends JpaRepository<CartItem, Long> {
-    List<CartItem> findByCartId(Long cartId);
+public interface CartItemRepository extends R2dbcRepository<CartItem, Long> {
+    Flux<CartItem> findAllByCartId(Long cartId);
 
-    Optional<CartItem> findByCartIdAndItemId(Long cartId, Long itemId);
+    Mono<CartItem> findByCartIdAndItemId(Long cartId, Long id);
 
-    @Modifying
-    @Transactional
-    @Query("DELETE FROM CartItem ci WHERE ci.cart.id = :cartId")
-    void deleteByCartId(Long cartId);
+    Flux<CartItem> findByCartId(Long cartId);
+
+    <T> Mono<T> deleteByCartId(Long cartId);
+
 }

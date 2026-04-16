@@ -1,45 +1,43 @@
 package ru.yandex.practicum.my_market_app.persistence.entity;
 
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 
-@Entity
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "items")
-public class Item {
+public final class Item {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(value = "title")
     private String title;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(value = "description")
     private String description;
 
-    @Column(name = "img_path", length = 500)
+    @Column(value = "img_path")
     private String imgPath;
 
-    @Column(nullable = false)
+    @Column(value = "price")
     private Long price;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
+    @Column(value = "created_at")
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    @Column(value = "updated_at")
     private LocalDateTime updatedAt;
 
     @Transient

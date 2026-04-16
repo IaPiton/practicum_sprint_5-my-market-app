@@ -1,31 +1,30 @@
 package ru.yandex.practicum.my_market_app.core.service;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import ru.yandex.practicum.my_market_app.api.handler.OrderItemNotFoundException;
+import ru.yandex.practicum.my_market_app.configuration.AbstractTestcontainersTest;
 import ru.yandex.practicum.my_market_app.core.model.OrderDto;
-import ru.yandex.practicum.my_market_app.persistence.entity.*;
-import ru.yandex.practicum.my_market_app.persistence.repository.CartItemRepository;
-import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
-import ru.yandex.practicum.my_market_app.persistence.repository.ItemRepository;
-import ru.yandex.practicum.my_market_app.persistence.repository.OrderRepository;
+import ru.yandex.practicum.my_market_app.core.model.OrderItemDto;
+import ru.yandex.practicum.my_market_app.persistence.entity.Cart;
+import ru.yandex.practicum.my_market_app.persistence.entity.Item;
+import ru.yandex.practicum.my_market_app.persistence.entity.Order;
+import ru.yandex.practicum.my_market_app.persistence.model.OrderStatus;
+import ru.yandex.practicum.my_market_app.persistence.repository.*;
 
-import java.util.List;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Transactional
 @SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("Интеграционные тесты сервиса заказов с реальной БД")
-class OrderServiceImplTest {
+class OrderServiceImplTest extends AbstractTestcontainersTest {
 
     @Autowired
     private OrderService orderService;
@@ -37,13 +36,16 @@ class OrderServiceImplTest {
     private OrderRepository orderRepository;
 
     @Autowired
-    private CartRepository cartRepository;
+    private OrderItemRepository orderItemRepository;
 
     @Autowired
     private CartItemRepository cartItemRepository;
 
     @Autowired
     private ItemRepository itemRepository;
+
+    @Autowired
+    private CartRepository cartRepository;
 
     private Cart testCart;
     private Item testItem1;
@@ -52,30 +54,162 @@ class OrderServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        orderItemRepository.deleteAll().block();
+        orderRepository.deleteAll().block();
+        cartItemRepository.deleteAll().block();
+        cartRepository.deleteAll().block();
+        itemRepository.deleteAll().block();
+
         String testSessionId = "test-session-" + System.currentTimeMillis();
-        Long cartId = cartService.getCurrentCartId(testSessionId);
-        testCart = cartRepository.findById(cartId).orElseThrow();
+
+        testCart = new Cart();
+        testCart.setSessionId(testSessionId);
+        testCart = cartRepository.save(testCart).block();
 
         testItem1 = new Item();
-        testItem1.setTitle("Тестовый товар 1");
-        testItem1.setDescription("Описание товара 1");
-        testItem1.setImgPath("/images/test1.jpg");
+        testItem1.setTitle("Апельсин");
+        testItem1.setDescription("Сочный апельсин");
+        testItem1.setImgPath("/images/orange.jpg");
         testItem1.setPrice(100L);
-        testItem1 = itemRepository.save(testItem1);
+        testItem1 = itemRepository.save(testItem1).block();
 
         testItem2 = new Item();
-        testItem2.setTitle("Тестовый товар 2");
-        testItem2.setDescription("Описание товара 2");
-        testItem2.setImgPath("/images/test2.jpg");
+        testItem2.setTitle("Банан");
+        testItem2.setDescription("Сладкий банан");
+        testItem2.setImgPath("/images/banana.jpg");
         testItem2.setPrice(200L);
-        testItem2 = itemRepository.save(testItem2);
+        testItem2 = itemRepository.save(testItem2).block();
 
         testItem3 = new Item();
-        testItem3.setTitle("Тестовый товар 3");
-        testItem3.setDescription("Описание товара 3");
-        testItem3.setImgPath("/images/test3.jpg");
+        testItem3.setTitle("Яблоко");
+        testItem3.setDescription("Хрустящее яблоко");
+        testItem3.setImgPath("/images/apple.jpg");
         testItem3.setPrice(150L);
-        testItem3 = itemRepository.save(testItem3);
+        testItem3 = itemRepository.save(testItem3).block();
+    }
+
+    @AfterEach
+    void tearDown() {
+        orderItemRepository.deleteAll().block();
+        orderRepository.deleteAll().block();
+        cartItemRepository.deleteAll().block();
+        cartRepository.deleteAll().block();
+        itemRepository.deleteAll().block();
+    }
+
+    private Mono<Void> addItemToCart(Long cartId, Long itemId, int quantity) {
+        return itemRepository.findById(itemId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Item not found with id: " + itemId)))
+                .flatMap(item ->
+                        Flux.range(1, quantity)
+                                .concatMap(i -> cartService.updateItemCount(cartId, item, "PLUS"))
+                                .then()
+                );
+    }
+
+    @Nested
+    @DisplayName("Тесты создания заказа из корзины")
+    class CreateOrderFromCartTests {
+
+        @Test
+        @DisplayName("Должен успешно создать заказ из корзины с товарами")
+        void shouldSuccessfullyCreateOrderFromCartWithItems() {
+            addItemToCart(testCart.getId(), testItem1.getId(), 2).block();
+            addItemToCart(testCart.getId(), testItem2.getId(), 1).block();
+            addItemToCart(testCart.getId(), testItem3.getId(), 3).block();
+
+            StepVerifier.create(orderService.createOrderFromCart(testCart.getId()))
+                    .assertNext(order -> {
+                        assertThat(order).isNotNull();
+                        assertThat(order.getId()).isNotNull();
+                        assertThat(order.getOrderNumber()).isNotNull();
+                        assertThat(order.getOrderNumber()).startsWith("ORDER-");
+                        assertThat(order.getStatus()).isEqualTo(OrderStatus.NEW);
+                        assertThat(order.getCreatedAt()).isNotNull();
+                        assertThat(order.getUpdatedAt()).isNotNull();
+                        assertThat(order.getTotalSum()).isEqualTo(850L);
+                    })
+                    .verifyComplete();
+
+            StepVerifier.create(cartItemRepository.findByCartId(testCart.getId()).collectList())
+                    .assertNext(items -> assertThat(items).isEmpty())
+                    .verifyComplete();
+
+            StepVerifier.create(orderRepository.findAll().collectList())
+                    .assertNext(orders -> assertThat(orders).hasSize(1))
+                    .verifyComplete();
+
+            StepVerifier.create(orderItemRepository.findAll().collectList())
+                    .assertNext(orderItems -> {
+                        assertThat(orderItems).hasSize(3);
+
+                        var orderItem1 = orderItems.stream()
+                                .filter(oi -> oi.getItemId().equals(testItem1.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(orderItem1).isNotNull();
+                        assertThat(orderItem1.getQuantity()).isEqualTo(2);
+                        assertThat(orderItem1.getPrice()).isEqualTo(100L);
+                        assertThat(orderItem1.getTitle()).isEqualTo("Апельсин");
+
+                        var orderItem2 = orderItems.stream()
+                                .filter(oi -> oi.getItemId().equals(testItem2.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(orderItem2).isNotNull();
+                        assertThat(orderItem2.getQuantity()).isEqualTo(1);
+                        assertThat(orderItem2.getPrice()).isEqualTo(200L);
+                        assertThat(orderItem2.getTitle()).isEqualTo("Банан");
+
+                        var orderItem3 = orderItems.stream()
+                                .filter(oi -> oi.getItemId().equals(testItem3.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(orderItem3).isNotNull();
+                        assertThat(orderItem3.getQuantity()).isEqualTo(3);
+                        assertThat(orderItem3.getPrice()).isEqualTo(150L);
+                        assertThat(orderItem3.getTitle()).isEqualTo("Яблоко");
+                    })
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("Должен выбросить исключение при создании заказа из пустой корзины")
+        void shouldThrowExceptionWhenCreatingOrderFromEmptyCart() {
+            StepVerifier.create(orderService.createOrderFromCart(testCart.getId()))
+                    .expectErrorMatches(throwable -> throwable instanceof OrderItemNotFoundException &&
+                            throwable.getMessage().contains("В корзине нет товаров для оформления заказа"))
+                    .verify();
+        }
+
+        @Test
+        @DisplayName("Должен выбросить исключение при создании заказа из несуществующей корзины")
+        void shouldThrowExceptionWhenCreatingOrderFromNonExistentCart() {
+            StepVerifier.create(orderService.createOrderFromCart(99999L))
+                    .expectErrorMatches(throwable -> throwable instanceof OrderItemNotFoundException &&
+                            throwable.getMessage().contains("В корзине нет товаров для оформления заказа"))
+                    .verify();
+        }
+
+        @Test
+        @DisplayName("Должен корректно обработать создание нескольких заказов подряд")
+        void shouldHandleMultipleOrdersCreation() {
+            addItemToCart(testCart.getId(), testItem1.getId(), 1).block();
+
+            Order firstOrder = orderService.createOrderFromCart(testCart.getId()).block();
+            assertThat(firstOrder).isNotNull();
+            assertThat(firstOrder.getTotalSum()).isEqualTo(100L);
+
+            addItemToCart(testCart.getId(), testItem2.getId(), 2).block();
+            addItemToCart(testCart.getId(), testItem3.getId(), 1).block();
+
+            Order secondOrder = orderService.createOrderFromCart(testCart.getId()).block();
+            assertThat(secondOrder).isNotNull();
+            assertThat(secondOrder.getTotalSum()).isEqualTo(550L);
+
+            StepVerifier.create(orderRepository.findAll().collectList())
+                    .assertNext(orders -> assertThat(orders).hasSize(2))
+                    .verifyComplete();
+
+            assertThat(firstOrder.getOrderNumber()).isNotEqualTo(secondOrder.getOrderNumber());
+        }
     }
 
     @Nested
@@ -85,146 +219,51 @@ class OrderServiceImplTest {
         @Test
         @DisplayName("Должен вернуть пустой список, если заказов нет")
         void shouldReturnEmptyListWhenNoOrders() {
-            List<OrderDto> orders = orderService.getAllOrders();
-
-            assertThat(orders).isNotNull();
-            assertThat(orders).isEmpty();
+            StepVerifier.create(orderService.getAllOrders().collectList())
+                    .assertNext(orders -> {
+                        assertThat(orders).isNotNull();
+                        assertThat(orders).isEmpty();
+                    })
+                    .verifyComplete();
         }
 
         @Test
-        @DisplayName("Должен вернуть список всех заказов")
-        void shouldReturnAllOrders() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-            Order order1 = orderService.createOrderFromCart(testCart.getId());
+        @DisplayName("Должен вернуть все заказы с их товарами")
+        void shouldReturnAllOrdersWithItems() {
+            addItemToCart(testCart.getId(), testItem1.getId(), 2).block();
+            Order firstOrder = orderService.createOrderFromCart(testCart.getId()).block();
 
-            addItemsToCart(testCart.getId(), testItem3.getId(), 3);
-            Order order2 = orderService.createOrderFromCart(testCart.getId());
+            addItemToCart(testCart.getId(), testItem2.getId(), 1).block();
+            addItemToCart(testCart.getId(), testItem3.getId(), 3).block();
+            Order secondOrder = orderService.createOrderFromCart(testCart.getId()).block();
 
-            List<OrderDto> orders = orderService.getAllOrders();
+            StepVerifier.create(orderService.getAllOrders().collectList())
+                    .assertNext(orders -> {
+                        assertThat(orders).hasSize(2);
 
-            assertThat(orders).hasSize(2);
-            assertThat(orders.get(0).id()).isEqualTo(order2.getId());
-            assertThat(orders.get(1).id()).isEqualTo(order1.getId());
+                        OrderDto firstOrderDto = orders.stream()
+                                .filter(o -> o.id().equals(Objects.requireNonNull(firstOrder).getId()))
+                                .findFirst().orElse(null);
+                        assertThat(firstOrderDto).isNotNull();
+                        assertThat(firstOrderDto.orderNumber()).isEqualTo(firstOrder.getOrderNumber());
+                        assertThat(firstOrderDto.status()).isEqualTo(OrderStatus.NEW.name());
+                        assertThat(firstOrderDto.totalSum()).isEqualTo(200L);
+                        assertThat(firstOrderDto.items()).hasSize(1);
+                        assertThat(firstOrderDto.items().getFirst().title()).isEqualTo("Апельсин");
+                        assertThat(firstOrderDto.items().getFirst().count()).isEqualTo(2);
+                        assertThat(firstOrderDto.items().getFirst().subtotal()).isEqualTo(200L);
+
+                        OrderDto secondOrderDto = orders.stream()
+                                .filter(o -> o.id().equals(Objects.requireNonNull(secondOrder).getId()))
+                                .findFirst().orElse(null);
+                        assertThat(secondOrderDto).isNotNull();
+                        assertThat(secondOrderDto.orderNumber()).isEqualTo(secondOrder.getOrderNumber());
+                        assertThat(secondOrderDto.totalSum()).isEqualTo(650L);
+                        assertThat(secondOrderDto.items()).hasSize(2);
+                    })
+                    .verifyComplete();
         }
 
-        @Test
-        @DisplayName("Должен вернуть заказы в порядке убывания даты создания")
-        void shouldReturnOrdersSortedByCreatedAtDesc() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 1);
-            Order order1 = orderService.createOrderFromCart(testCart.getId());
-
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-            Order order2 = orderService.createOrderFromCart(testCart.getId());
-
-            List<OrderDto> orders = orderService.getAllOrders();
-
-            assertThat(orders).hasSize(2);
-            assertThat(orders.get(0).id()).isEqualTo(order2.getId());
-            assertThat(orders.get(1).id()).isEqualTo(order1.getId());
-        }
-    }
-
-    @Nested
-    @DisplayName("Тесты создания заказа из корзины")
-    class CreateOrderFromCartTests {
-
-        @Test
-        @DisplayName("Должен создать заказ из корзины с товарами")
-        void shouldCreateOrderFromCartWithItems() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-
-            Order order = orderService.createOrderFromCart(testCart.getId());
-
-            assertThat(order).isNotNull();
-            assertThat(order.getId()).isNotNull();
-            assertThat(order.getOrderNumber()).isNotNull();
-            assertThat(order.getOrderNumber()).startsWith("ORDER-");
-            assertThat(order.getStatus()).isNotNull();
-            assertThat(order.getTotalSum()).isEqualTo(100 * 2 + 200);
-            assertThat(order.getItems()).hasSize(2);
-
-            List<CartItem> cartItems = cartItemRepository.findByCartId(testCart.getId());
-            assertThat(cartItems).isEmpty();
-        }
-
-        @Test
-        @DisplayName("Должен создать заказ с правильными позициями")
-        void shouldCreateOrderWithCorrectOrderItems() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 3);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 2);
-
-            Order order = orderService.createOrderFromCart(testCart.getId());
-
-            assertThat(order.getItems()).hasSize(2);
-
-            OrderItem orderItem1 = order.getItems().stream()
-                    .filter(oi -> oi.getItem().getId().equals(testItem1.getId()))
-                    .findFirst()
-                    .orElse(null);
-            assertThat(orderItem1).isNotNull();
-            assertThat(orderItem1.getTitle()).isEqualTo(testItem1.getTitle());
-            assertThat(orderItem1.getPrice()).isEqualTo(testItem1.getPrice());
-            assertThat(orderItem1.getQuantity()).isEqualTo(3);
-
-            OrderItem orderItem2 = order.getItems().stream()
-                    .filter(oi -> oi.getItem().getId().equals(testItem2.getId()))
-                    .findFirst()
-                    .orElse(null);
-            assertThat(orderItem2).isNotNull();
-            assertThat(orderItem2.getTitle()).isEqualTo(testItem2.getTitle());
-            assertThat(orderItem2.getPrice()).isEqualTo(testItem2.getPrice());
-            assertThat(orderItem2.getQuantity()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("Должен создать заказ с правильной общей суммой")
-        void shouldCreateOrderWithCorrectTotalSum() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 3);
-            addItemsToCart(testCart.getId(), testItem3.getId(), 1);
-            long expectedTotal = 200 + 600 + 150;
-
-            Order order = orderService.createOrderFromCart(testCart.getId());
-
-            assertThat(order.getTotalSum()).isEqualTo(expectedTotal);
-        }
-
-        @Test
-        @DisplayName("Должен выбросить исключение при создании заказа из пустой корзины")
-        void shouldThrowExceptionWhenCreatingOrderFromEmptyCart() {
-            assertThatThrownBy(() -> orderService.createOrderFromCart(testCart.getId()))
-                    .isInstanceOf(OrderItemNotFoundException.class)
-                    .hasMessageContaining("В корзине нет товаров для оформления заказа");
-        }
-
-        @Test
-        @DisplayName("Должен очистить корзину после создания заказа")
-        void shouldClearCartAfterCreatingOrder() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-
-            List<CartItem> beforeItems = cartItemRepository.findByCartId(testCart.getId());
-            assertThat(beforeItems).isNotEmpty();
-
-            orderService.createOrderFromCart(testCart.getId());
-
-            List<CartItem> afterItems = cartItemRepository.findByCartId(testCart.getId());
-            assertThat(afterItems).isEmpty();
-        }
-
-        @Test
-        @DisplayName("Должен создать заказ с уникальным номером")
-        void shouldCreateOrderWithUniqueNumber() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 1);
-            Order order1 = orderService.createOrderFromCart(testCart.getId());
-
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-            Order order2 = orderService.createOrderFromCart(testCart.getId());
-
-            assertThat(order1.getOrderNumber()).isNotEqualTo(order2.getOrderNumber());
-        }
     }
 
     @Nested
@@ -234,53 +273,87 @@ class OrderServiceImplTest {
         @Test
         @DisplayName("Должен вернуть заказ по существующему ID")
         void shouldReturnOrderById() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            Order savedOrder = orderService.createOrderFromCart(testCart.getId());
+            addItemToCart(testCart.getId(), testItem1.getId(), 2).block();
+            addItemToCart(testCart.getId(), testItem2.getId(), 1).block();
+            Order createdOrder = orderService.createOrderFromCart(testCart.getId()).block();
 
-            OrderDto order = orderService.getOrderById(savedOrder.getId());
+            StepVerifier.create(orderService.getOrderById(Objects.requireNonNull(createdOrder).getId()))
+                    .assertNext(orderDto -> {
+                        assertThat(orderDto).isNotNull();
+                        assertThat(orderDto.id()).isEqualTo(createdOrder.getId());
+                        assertThat(orderDto.orderNumber()).isEqualTo(createdOrder.getOrderNumber());
+                        assertThat(orderDto.status()).isEqualTo(OrderStatus.NEW.name());
+                        assertThat(orderDto.totalSum()).isEqualTo(400L);
+                        assertThat(orderDto.createdAt()).isNotNull();
+                        assertThat(orderDto.items()).hasSize(2);
 
-            assertThat(order).isNotNull();
-            assertThat(order.id()).isEqualTo(savedOrder.getId());
-            assertThat(order.orderNumber()).isEqualTo(savedOrder.getOrderNumber());
-            assertThat(order.totalSum()).isEqualTo(savedOrder.getTotalSum());
-            assertThat(order.status()).isEqualTo(savedOrder.getStatus().name());
-            assertThat(order.items()).hasSize(1);
+                        OrderItemDto item1 = orderDto.items().stream()
+                                .filter(i -> i.id().equals(testItem1.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(item1).isNotNull();
+                        assertThat(item1.title()).isEqualTo("Апельсин");
+                        assertThat(item1.count()).isEqualTo(2);
+                        assertThat(item1.price()).isEqualTo(100L);
+                        assertThat(item1.subtotal()).isEqualTo(200L);
+
+                        OrderItemDto item2 = orderDto.items().stream()
+                                .filter(i -> i.id().equals(testItem2.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(item2).isNotNull();
+                        assertThat(item2.title()).isEqualTo("Банан");
+                        assertThat(item2.count()).isEqualTo(1);
+                        assertThat(item2.price()).isEqualTo(200L);
+                        assertThat(item2.subtotal()).isEqualTo(200L);
+                    })
+                    .verifyComplete();
         }
 
         @Test
-        @DisplayName("Должен выбросить исключение при ненайденном заказе")
+        @DisplayName("Должен выбросить исключение при запросе несуществующего заказа")
         void shouldThrowExceptionWhenOrderNotFound() {
-            assertThatThrownBy(() -> orderService.getOrderById(99999L))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Заказ не найден");
+            StepVerifier.create(orderService.getOrderById(99999L))
+                    .expectErrorMatches(throwable -> throwable instanceof RuntimeException &&
+                            throwable.getMessage().contains("Заказ не найден"))
+                    .verify();
         }
 
         @Test
-        @DisplayName("Должен вернуть заказ с правильными позициями")
-        void shouldReturnOrderWithCorrectItems() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-            Order savedOrder = orderService.createOrderFromCart(testCart.getId());
+        @DisplayName("Должен вернуть заказ с правильными деталями товаров")
+        void shouldReturnOrderWithCorrectItemDetails() {
+            addItemToCart(testCart.getId(), testItem1.getId(), 3).block();
+            addItemToCart(testCart.getId(), testItem2.getId(), 2).block();
+            addItemToCart(testCart.getId(), testItem3.getId(), 1).block();
+            Order createdOrder = orderService.createOrderFromCart(testCart.getId()).block();
 
-            OrderDto order = orderService.getOrderById(savedOrder.getId());
+            StepVerifier.create(orderService.getOrderById(Objects.requireNonNull(createdOrder).getId()))
+                    .assertNext(orderDto -> {
+                        assertThat(orderDto.items()).hasSize(3);
 
-            assertThat(order.items()).hasSize(2);
+                        OrderItemDto orangeItem = orderDto.items().stream()
+                                .filter(i -> i.title().equals("Апельсин"))
+                                .findFirst().orElse(null);
+                        assertThat(orangeItem).isNotNull();
+                        assertThat(orangeItem.count()).isEqualTo(3);
+                        assertThat(orangeItem.price()).isEqualTo(100L);
+                        assertThat(orangeItem.subtotal()).isEqualTo(300L);
 
-            var item1 = order.items().stream()
-                    .filter(i -> i.id().equals(testItem1.getId()))
-                    .findFirst().orElse(null);
-            assertThat(item1).isNotNull();
-            assertThat(item1.title()).isEqualTo(testItem1.getTitle());
-            assertThat(item1.price()).isEqualTo(testItem1.getPrice());
-            assertThat(item1.count()).isEqualTo(2);
+                        OrderItemDto bananaItem = orderDto.items().stream()
+                                .filter(i -> i.title().equals("Банан"))
+                                .findFirst().orElse(null);
+                        assertThat(bananaItem).isNotNull();
+                        assertThat(bananaItem.count()).isEqualTo(2);
+                        assertThat(bananaItem.price()).isEqualTo(200L);
+                        assertThat(bananaItem.subtotal()).isEqualTo(400L);
 
-            var item2 = order.items().stream()
-                    .filter(i -> i.id().equals(testItem2.getId()))
-                    .findFirst().orElse(null);
-            assertThat(item2).isNotNull();
-            assertThat(item2.title()).isEqualTo(testItem2.getTitle());
-            assertThat(item2.price()).isEqualTo(testItem2.getPrice());
-            assertThat(item2.count()).isEqualTo(1);
+                        OrderItemDto appleItem = orderDto.items().stream()
+                                .filter(i -> i.title().equals("Яблоко"))
+                                .findFirst().orElse(null);
+                        assertThat(appleItem).isNotNull();
+                        assertThat(appleItem.count()).isEqualTo(1);
+                        assertThat(appleItem.price()).isEqualTo(150L);
+                        assertThat(appleItem.subtotal()).isEqualTo(150L);
+                    })
+                    .verifyComplete();
         }
     }
 
@@ -289,24 +362,12 @@ class OrderServiceImplTest {
     class OrderNumberGenerationTests {
 
         @Test
-        @DisplayName("Должен генерировать номер заказа в правильном формате")
-        void shouldGenerateOrderNumberInCorrectFormat() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 1);
-            Order order = orderService.createOrderFromCart(testCart.getId());
+        @DisplayName("Номер заказа должен иметь правильный формат")
+        void shouldHaveCorrectOrderNumberFormat() {
+            addItemToCart(testCart.getId(), testItem1.getId(), 1).block();
+            Order order = orderService.createOrderFromCart(testCart.getId()).block();
 
-            assertThat(order.getOrderNumber()).matches("ORDER-\\d{14}-\\d{5}");
-        }
-
-        @Test
-        @DisplayName("Должен генерировать уникальные номера заказов")
-        void shouldGenerateUniqueOrderNumbers() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 1);
-            Order order1 = orderService.createOrderFromCart(testCart.getId());
-
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
-            Order order2 = orderService.createOrderFromCart(testCart.getId());
-
-            assertThat(order1.getOrderNumber()).isNotEqualTo(order2.getOrderNumber());
+            assertThat(Objects.requireNonNull(order).getOrderNumber()).matches("ORDER-\\d{14}-\\d{5}");
         }
     }
 
@@ -315,97 +376,112 @@ class OrderServiceImplTest {
     class IntegrationFlowTests {
 
         @Test
-        @DisplayName("Должен корректно обработать полный цикл: корзина -> заказ -> получение заказа")
+        @DisplayName("Должен корректно обработать полный цикл: корзина -> заказ -> просмотр заказов")
         void shouldHandleFullCartToOrderCycle() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 2);
-            addItemsToCart(testCart.getId(), testItem2.getId(), 1);
+            addItemToCart(testCart.getId(), testItem1.getId(), 2).block();
+            addItemToCart(testCart.getId(), testItem2.getId(), 1).block();
 
-            List<CartItem> cartItems = cartItemRepository.findByCartId(testCart.getId());
-            assertThat(cartItems).hasSize(2);
+            StepVerifier.create(cartService.getItemCounts(testCart.getId()))
+                    .assertNext(counts -> {
+                        assertThat(counts.get(testItem1.getId())).isEqualTo(2);
+                        assertThat(counts.get(testItem2.getId())).isEqualTo(1);
+                    })
+                    .verifyComplete();
 
-            Order order = orderService.createOrderFromCart(testCart.getId());
+            Order order = orderService.createOrderFromCart(testCart.getId()).block();
             assertThat(order).isNotNull();
-            assertThat(order.getTotalSum()).isEqualTo(100 * 2 + 200);
+            assertThat(order.getTotalSum()).isEqualTo(400L);
 
-            cartItems = cartItemRepository.findByCartId(testCart.getId());
-            assertThat(cartItems).isEmpty();
+            StepVerifier.create(cartService.getItemCounts(testCart.getId()))
+                    .assertNext(counts -> assertThat(counts).isEmpty())
+                    .verifyComplete();
 
-            OrderDto fetchedOrder = orderService.getOrderById(order.getId());
-            assertThat(fetchedOrder).isNotNull();
-            assertThat(fetchedOrder.totalSum()).isEqualTo(100 * 2 + 200);
-            assertThat(fetchedOrder.items()).hasSize(2);
+            StepVerifier.create(orderService.getOrderById(order.getId()))
+                    .assertNext(orderDto -> {
+                        assertThat(orderDto.totalSum()).isEqualTo(400L);
+                        assertThat(orderDto.items()).hasSize(2);
+                    })
+                    .verifyComplete();
 
-            List<OrderDto> allOrders = orderService.getAllOrders();
-            assertThat(allOrders).hasSize(1);
-            assertThat(allOrders.getFirst().id()).isEqualTo(order.getId());
+            StepVerifier.create(orderService.getAllOrders().collectList())
+                    .assertNext(orders -> {
+                        assertThat(orders).hasSize(1);
+                        assertThat(orders.getFirst().totalSum()).isEqualTo(400L);
+                    })
+                    .verifyComplete();
         }
 
         @Test
-        @DisplayName("Должен корректно обработать несколько заказов подряд")
-        void shouldHandleMultipleOrdersInRow() {
-            addItemsToCart(testCart.getId(), testItem1.getId(), 1);
-            Order order1 = orderService.createOrderFromCart(testCart.getId());
-
-            addItemsToCart(testCart.getId(), testItem2.getId(), 2);
-            Order order2 = orderService.createOrderFromCart(testCart.getId());
-
-            addItemsToCart(testCart.getId(), testItem3.getId(), 3);
-            Order order3 = orderService.createOrderFromCart(testCart.getId());
-
-            List<OrderDto> allOrders = orderService.getAllOrders();
-            assertThat(allOrders).hasSize(3);
-
-            assertThat(order1.getTotalSum()).isEqualTo(100);
-            assertThat(order2.getTotalSum()).isEqualTo(200 * 2);
-            assertThat(order3.getTotalSum()).isEqualTo(150 * 3);
-        }
-
-        @Test
-        @DisplayName("Должен корректно обработать заказ с большим количеством товаров")
-        void shouldHandleOrderWithManyItems() {
-            for (int i = 0; i < 10; i++) {
-                addItemsToCart(testCart.getId(), testItem1.getId(), 1);
-            }
-
-            Order order = orderService.createOrderFromCart(testCart.getId());
-
-            assertThat(order.getItems()).hasSize(1);
-            assertThat(order.getItems().getFirst().getQuantity()).isEqualTo(10);
-            assertThat(order.getTotalSum()).isEqualTo(100 * 10);
-        }
-
-    }
-
-    @Nested
-    @DisplayName("Тесты работы с разными сессиями")
-    class DifferentSessionsTests {
-
-        @Test
-        @DisplayName("Разные сессии должны иметь разные заказы")
-        void differentSessionsShouldHaveDifferentOrders() {
-            String sessionId1 = "session-1-" + System.currentTimeMillis();
+        @DisplayName("Должен корректно обработать несколько заказов от разных корзин")
+        void shouldHandleMultipleOrdersFromDifferentCarts() {
             String sessionId2 = "session-2-" + System.currentTimeMillis();
+            Cart cart2 = new Cart();
+            cart2.setSessionId(sessionId2);
+            cart2 = cartRepository.save(cart2).block();
 
-            Long cartId1 = cartService.getCurrentCartId(sessionId1);
-            Long cartId2 = cartService.getCurrentCartId(sessionId2);
+            addItemToCart(testCart.getId(), testItem1.getId(), 2).block();
+            Order order1 = orderService.createOrderFromCart(testCart.getId()).block();
 
-            addItemsToCart(cartId1, testItem1.getId(), 2);
-            addItemsToCart(cartId2, testItem2.getId(), 3);
+            addItemToCart(Objects.requireNonNull(cart2).getId(), testItem2.getId(), 3).block();
+            Order order2 = orderService.createOrderFromCart(cart2.getId()).block();
 
-            Order order1 = orderService.createOrderFromCart(cartId1);
-            Order order2 = orderService.createOrderFromCart(cartId2);
+            StepVerifier.create(orderService.getAllOrders().collectList())
+                    .assertNext(orders -> {
+                        assertThat(orders).hasSize(2);
 
-            assertThat(order1.getTotalSum()).isEqualTo(200);
-            assertThat(order2.getTotalSum()).isEqualTo(600);
-            assertThat(order1.getItems().getFirst().getItem().getId()).isEqualTo(testItem1.getId());
-            assertThat(order2.getItems().getFirst().getItem().getId()).isEqualTo(testItem2.getId());
+                        OrderDto order1Dto = orders.stream()
+                                .filter(o -> o.id().equals(Objects.requireNonNull(order1).getId()))
+                                .findFirst().orElse(null);
+                        assertThat(order1Dto).isNotNull();
+                        assertThat(order1Dto.totalSum()).isEqualTo(200L);
+
+                        OrderDto order2Dto = orders.stream()
+                                .filter(o -> o.id().equals(Objects.requireNonNull(order2).getId()))
+                                .findFirst().orElse(null);
+                        assertThat(order2Dto).isNotNull();
+                        assertThat(order2Dto.totalSum()).isEqualTo(600L);
+                    })
+                    .verifyComplete();
+        }
+
+        @Test
+        @DisplayName("Должен корректно обработать создание заказа и проверку через DTO")
+        void shouldHandleOrderCreationAndDtoValidation() {
+            addItemToCart(testCart.getId(), testItem1.getId(), 2).block();
+            addItemToCart(testCart.getId(), testItem3.getId(), 1).block();
+
+            Order order = orderService.createOrderFromCart(testCart.getId()).block();
+
+            StepVerifier.create(orderService.getOrderById(Objects.requireNonNull(order).getId()))
+                    .assertNext(orderDto -> {
+                        assertThat(orderDto.id()).isEqualTo(order.getId());
+                        assertThat(orderDto.orderNumber()).isEqualTo(order.getOrderNumber());
+                        assertThat(orderDto.status()).isEqualTo(OrderStatus.NEW.name());
+                        assertThat(orderDto.totalSum()).isEqualTo(350L);
+                        assertThat(orderDto.createdAt()).isNotNull();
+
+                        assertThat(orderDto.items()).hasSize(2);
+
+                        OrderItemDto item1 = orderDto.items().stream()
+                                .filter(i -> i.id().equals(testItem1.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(item1).isNotNull();
+                        assertThat(item1.title()).isEqualTo("Апельсин");
+                        assertThat(item1.count()).isEqualTo(2);
+                        assertThat(item1.price()).isEqualTo(100L);
+                        assertThat(item1.subtotal()).isEqualTo(200L);
+
+                        OrderItemDto item3 = orderDto.items().stream()
+                                .filter(i -> i.id().equals(testItem3.getId()))
+                                .findFirst().orElse(null);
+                        assertThat(item3).isNotNull();
+                        assertThat(item3.title()).isEqualTo("Яблоко");
+                        assertThat(item3.count()).isEqualTo(1);
+                        assertThat(item3.price()).isEqualTo(150L);
+                        assertThat(item3.subtotal()).isEqualTo(150L);
+                    })
+                    .verifyComplete();
         }
     }
 
-    private void addItemsToCart(Long cartId, Long itemId, int quantity) {
-        for (int i = 0; i < quantity; i++) {
-            Item item = itemRepository.findById(itemId).orElseThrow();
-            cartService.updateItemCount(cartId, item, "PLUS");
-        }
-    }
 }

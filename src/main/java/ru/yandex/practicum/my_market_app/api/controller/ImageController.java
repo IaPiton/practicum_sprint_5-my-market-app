@@ -8,30 +8,34 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Controller
 @RequiredArgsConstructor
 public class ImageController {
 
+    private static final String IMAGES_PATH = "static/images/";
+    private static final String PLACEHOLDER_IMAGE = "static/images/placeholder.jpg";
+
     @GetMapping(value = "/images/{filename}", produces = MediaType.IMAGE_JPEG_VALUE)
-    public ResponseEntity<Resource> getImage(@PathVariable String filename) {
-        try {
-            Resource resource = new ClassPathResource("static/images/" + filename);
-            if (resource.exists() && resource.isReadable()) {
-                return ResponseEntity.ok()
-                        .contentType(MediaType.IMAGE_JPEG)
-                        .body(resource);
-            } else {
-                Resource emptyImage = new ClassPathResource("static/images/placeholder.jpg");
-                if (emptyImage.exists()) {
+    public Mono<ResponseEntity<?>> getImage(@PathVariable String filename) {
+        return Mono.fromCallable(() -> {
+            try {
+                Resource resource = new ClassPathResource(IMAGES_PATH + filename);
+                if (resource.exists() && resource.isReadable()) {
                     return ResponseEntity.ok()
                             .contentType(MediaType.IMAGE_JPEG)
-                            .body(emptyImage);
+                            .body(resource);
+                } else {
+                    Resource placeholder = new ClassPathResource(PLACEHOLDER_IMAGE);
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.IMAGE_JPEG)
+                            .body(placeholder);
                 }
+            } catch (Exception e) {
                 return ResponseEntity.notFound().build();
             }
-        } catch (Exception e) {
-            return ResponseEntity.notFound().build();
-        }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 }

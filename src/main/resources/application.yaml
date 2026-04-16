@@ -2,10 +2,10 @@ server:
   port: 8080
 
 spring:
-  datasource:
+  webflux:
+    session:
+      timeout: 30m
+  r2dbc:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
-    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
+    url: r2dbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}

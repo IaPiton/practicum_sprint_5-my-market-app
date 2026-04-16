@@ -3,6 +3,8 @@ package ru.yandex.practicum.my_market_app.core.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_app.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_app.core.mapper.CartMapper;
 import ru.yandex.practicum.my_market_app.core.model.CartItemDto;
@@ -11,108 +13,153 @@ import ru.yandex.practicum.my_market_app.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_app.persistence.entity.Item;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartItemRepository;
 import ru.yandex.practicum.my_market_app.persistence.repository.CartRepository;
+import ru.yandex.practicum.my_market_app.persistence.repository.ItemRepository;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class CartServiceImpl implements CartService {
-    private final CartRepository cartRepository;
+    private final ItemRepository itemRepository;
     private final CartItemRepository cartItemRepository;
     private final CartMapper cartMapper;
+    private final CartRepository cartRepository;
 
     @Override
-    @Transactional
-    public Long getCurrentCartId(String sessionId) {
-        Cart cart = cartRepository.findBySessionId(sessionId)
-                .orElseGet(() -> {
+    public Mono<Long> getCurrentCartId(String sessionId) {
+        return cartRepository.findBySessionId(sessionId)
+                .switchIfEmpty(Mono.defer(() -> {
                     Cart newCart = new Cart();
                     newCart.setSessionId(sessionId);
                     return cartRepository.save(newCart);
-                });
-        return cart.getId();
+                }))
+                .map(Cart::getId);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public Map<Long, Integer> getItemCounts(Long cartId) {
-        Map<Long, Integer> counts = new HashMap<>();
-        cartItemRepository.findByCartId(cartId).forEach(cartItem ->
-                counts.put(cartItem.getItem().getId(), cartItem.getQuantity()));
-        return counts;
+    public Mono<Map<Long, Integer>> getItemCounts(Long cartId) {
+        return cartItemRepository.findAllByCartId(cartId)
+                .collectMap(
+                        CartItem::getItemId,
+                        CartItem::getQuantity
+                );
     }
 
     @Override
     @Transactional
-    public void updateItemCount(Long cartId, Item item, String action) {
-        Cart cart = cartRepository.findById(cartId)
-                .orElseThrow(() -> new CartNotFoundException("Корзина не найдена: " + cartId));
+    public Mono<Void> updateItemCount(Long cartId, Item item, String action) {
+        return cartRepository.findById(cartId)
+                .switchIfEmpty(Mono.error(new CartNotFoundException("Корзина не найдена: " + cartId)))
+                .flatMap(cart -> cartItemRepository.findByCartIdAndItemId(cartId, item.getId())
+                        .defaultIfEmpty(new CartItem(null, cartId, item.getId(), 0,
+                                LocalDateTime.now(), LocalDateTime.now()))
+                        .flatMap(cartItem -> switch (action.toUpperCase()) {
+                            case "PLUS" -> handlePlusAction(cart, cartItem);
+                            case "MINUS" -> handleMinusAction(cart, cartItem);
+                            case "DELETE" -> handleDeleteAction(cartItem);
+                            default -> Mono.error(new IllegalArgumentException(
+                                    "Неизвестное действие: " + action +
+                                            ". Поддерживаемые действия: PLUS, MINUS, DELETE"
+                            ));
+                        }));
+    }
 
-        CartItem cartItem = cartItemRepository.findByCartIdAndItemId(cartId, item.getId())
-                .orElse(null);
+    @Override
+    public Flux<CartItemDto> getCartItemsWithDetails(Long cartId) {
+        return cartItemRepository.findByCartId(cartId)
+                .collectList()
+                .flatMapMany(cartItems -> {
+                    if (cartItems.isEmpty()) {
+                        return Flux.empty();
+                    }
 
-         switch (action.toUpperCase()) {
-            case "PLUS" -> handlePlusAction(cart, item, cartItem);
-            case "MINUS" -> handleMinusAction(cartItem);
-            case "DELETE" -> handleDeleteAction(cartItem);
-            default -> throw new IllegalArgumentException(
-                    "Неизвестное действие: " + action + ". Поддерживаемые действия: PLUS, MINUS, DELETE"
-            );
-        }
+                    List<Long> itemIds = cartItems.stream()
+                            .map(CartItem::getItemId)
+                            .distinct()
+                            .collect(Collectors.toList());
+
+                    return itemRepository.findAllById(itemIds)
+                            .collectMap(Item::getId, Function.identity())
+                            .flatMapMany(itemMap -> Flux.fromIterable(cartItems)
+                                    .map(cartItem -> {
+                                        Item item = itemMap.get(cartItem.getItemId());
+                                        return cartMapper.convertToCartItemDto(cartItem, item);
+                                    })
+                                    .sort(Comparator.comparing(CartItemDto::title).reversed())
+                            );
+                });
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CartItemDto> getCartItemsWithDetails(Long cartId) {
-        List<CartItem> cartItems = cartItemRepository.findByCartId(cartId);
+    public Mono<Long> getCartTotal(Long cartId) {
+        return cartItemRepository.findByCartId(cartId)
+                .collectList()
+                .flatMap(cartItems -> {
+                    if (cartItems.isEmpty()) {
+                        return Mono.just(0L);
+                    }
 
-        return cartItems.stream()
-                .map(cartMapper::convertToCartItemDto)
-                .sorted(Comparator.comparing(CartItemDto::title).reversed())
-                .toList();
+                    List<Long> itemIds = cartItems.stream()
+                            .map(CartItem::getItemId)
+                            .distinct()
+                            .collect(Collectors.toList());
+
+                    return itemRepository.findAllById(itemIds)
+                            .collectMap(Item::getId, Function.identity())
+                            .map(itemMap -> cartItems.stream()
+                                    .mapToLong(cartItem -> {
+                                        Item item = itemMap.get(cartItem.getItemId());
+                                        return item != null ? item.getPrice() * cartItem.getQuantity() : 0L;
+                                    })
+                                    .sum());
+                });
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Long getCartTotal(Long cartId) {
-        return cartItemRepository.findByCartId(cartId).stream()
-                .mapToLong(cartItem -> cartItem.getItem().getPrice() * cartItem.getQuantity())
-                .sum();
-    }
-
-    private void handlePlusAction(Cart cart, Item item, CartItem cartItem) {
-        if (cartItem == null) {
-            CartItem newCartItem = new CartItem();
-            newCartItem.setCart(cart);
-            newCartItem.setItem(item);
-            newCartItem.setQuantity(1);
-            cartItemRepository.save(newCartItem);
+    private Mono<Void> handlePlusAction(Cart cart, CartItem cartItem) {
+        if (cartItem.getId() == null) {
+            cartItem.setQuantity(1);
         } else {
             cartItem.setQuantity(cartItem.getQuantity() + 1);
-            cartItemRepository.save(cartItem);
         }
+        cartItem.setUpdatedAt(LocalDateTime.now());
+        cart.setUpdatedAt(LocalDateTime.now());
+
+        return cartItemRepository.save(cartItem)
+                .then(cartRepository.save(cart))
+                .then();
     }
 
-    private void handleMinusAction(CartItem cartItem) {
-        if (cartItem == null) {
-            return;
+    private Mono<Void> handleMinusAction(Cart cart, CartItem cartItem) {
+        if (cartItem.getId() == null) {
+            return Mono.empty();
         }
 
         if (cartItem.getQuantity() > 1) {
             cartItem.setQuantity(cartItem.getQuantity() - 1);
-            cartItemRepository.save(cartItem);
+            cartItem.setUpdatedAt(LocalDateTime.now());
+            cart.setUpdatedAt(LocalDateTime.now());
+            return cartItemRepository.save(cartItem)
+                    .then(cartRepository.save(cart))
+                    .then();
         } else {
-            cartItemRepository.delete(cartItem);
+            cart.setUpdatedAt(LocalDateTime.now());
+            return cartItemRepository.delete(cartItem)
+                    .then(cartRepository.save(cart))
+                    .then();
         }
     }
 
-    private void handleDeleteAction(CartItem cartItem) {
-        if (cartItem != null) {
-            cartItemRepository.delete(cartItem);
+    private Mono<Void> handleDeleteAction(CartItem cartItem) {
+        if (cartItem.getId() != null) {
+            return cartItemRepository.delete(cartItem).then();
         }
+        return Mono.empty();
     }
 
 }
