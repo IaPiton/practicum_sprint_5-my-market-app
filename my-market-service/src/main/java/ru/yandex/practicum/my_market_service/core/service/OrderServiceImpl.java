@@ -14,6 +14,7 @@ import ru.yandex.practicum.my_market_service.persistence.repository.CartItemRepo
 import ru.yandex.practicum.my_market_service.persistence.repository.ItemRepository;
 import ru.yandex.practicum.my_market_service.persistence.repository.OrderItemRepository;
 import ru.yandex.practicum.my_market_service.persistence.repository.OrderRepository;
+import yandex.practicum.market.client.api.PaymentApi;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,7 +30,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
     private final OrderMapper orderMapper;
-
+    private final PaymentApi paymentApi;
 
 
     @Override

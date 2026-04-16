@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: Rest API платежного сервиса
+  version: 1.0.0
+
+paths:
+  /balance:
+    get:
+      tags:
+        - Payment
+      summary: Получение баланса на счёте
+      operationId: getBalance
+      x-interface-name: PaymentApi
+      responses:
+        '200':
+          description: Баланс на счёте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+
+    post:
+      tags:
+        - Payment
+      summary: Осуществление платежа
+      operationId: makePayment
+      x-interface-name: PaymentApi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Баланс успешно уменьшен
+        '409':
+          description: Недостаточно средств
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        balance:
+          type: number
+          format: bigdecimal
+          description: Текущий баланс пользователя
+      required:
+        - balance
+      example:
+        balance: 1500.99
+
+    PaymentRequest:
+      type: object
+      properties:
+        sum:
+          type: number
+          format: bigdecimal
+          minimum: 0
+          exclusiveMinimum: false
+          description: Сумма платежа
+      required:
+        - sum
+      example:
+        sum: 500.00
