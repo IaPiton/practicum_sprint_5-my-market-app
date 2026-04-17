@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
 import org.springframework.security.web.server.authentication.logout.RedirectServerLogoutSuccessHandler;
+import org.thymeleaf.extras.springsecurity6.dialect.SpringSecurityDialect;
 import ru.yandex.practicum.my_market_service.core.security.UserDetailsServiceImpl;
 import ru.yandex.practicum.my_market_service.core.security.UserService;
 
@@ -56,5 +57,10 @@ public class SecurityConfiguration {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SpringSecurityDialect springSecurityDialect() {
+        return new SpringSecurityDialect();
     }
 }

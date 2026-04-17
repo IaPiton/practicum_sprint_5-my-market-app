@@ -1,6 +1,7 @@
 package ru.yandex.practicum.my_market_service.api.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -8,6 +9,8 @@ import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.model.ItemUpdateRequest;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
+
+import java.security.Principal;
 
 
 @Controller
@@ -22,9 +25,16 @@ public class ItemController {
             @RequestParam(required = false, defaultValue = "NO") String sort,
             @RequestParam(required = false, defaultValue = "1") int pageNumber,
             @RequestParam(required = false, defaultValue = "5") int pageSize,
+            @AuthenticationPrincipal Mono<Principal> principal,
             Model model) {
 
-        return itemService.getItemsPage(search, sort, pageNumber, pageSize, session.getId())
+        return principal
+                .map(p -> true)
+                .defaultIfEmpty(false)
+                .flatMap(isAuth -> {
+                    model.addAttribute("isAuthenticated", isAuth);
+                    return itemService.getItemsPage(search, sort, pageNumber, pageSize, session.getId());
+                })
                 .doOnNext(pageData -> {
                     model.addAttribute("items", pageData.getItemsGrid());
                     model.addAttribute("search", pageData.getSearch());
