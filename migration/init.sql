@@ -86,3 +86,141 @@ INSERT INTO items (title, description, img_path, price) VALUES
 ('Напульники хлопковые', 'Впитывающие напульсники для защиты запястий и удаления пота. Пара, черный цвет.', 'images/wristbands.jpg', 299),
 ('Спортивные носки 3 пары', 'Компрессионные носки для бега и фитнеса. Антибактериальная пропитка.', 'images/socks.jpg', 699),
 ('Массажный ролл', 'МФР-ролл для восстановления мышц после тренировок. Плотность 50D.', 'images/foam-roller.jpg', 1490);
+
+-- Таблица пользователей
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
+    phone VARCHAR(20),
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица ролей
+CREATE TABLE roles (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description VARCHAR(255)
+);
+
+-- Таблица связей пользователей с ролями (многие-ко-многим)
+CREATE TABLE user_roles (
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+);
+
+-- Таблица для хранения refresh токенов
+CREATE TABLE refresh_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    token VARCHAR(512) UNIQUE NOT NULL,
+    user_id BIGINT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    revoked BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+-- Добавляем связь с пользователем в таблицу корзины
+ALTER TABLE cart ADD COLUMN user_id BIGINT;
+ALTER TABLE cart ADD CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE cart ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'; -- ACTIVE, CONVERTED_TO_ORDER
+
+-- Комментарий к полю cart.status
+COMMENT ON COLUMN cart.status IS 'Статус корзины: ACTIVE - активная, CONVERTED_TO_ORDER - преобразована в заказ';
+
+-- Добавляем связь с пользователем в таблицу заказов
+ALTER TABLE orders ADD COLUMN user_id BIGINT;
+ALTER TABLE orders ADD CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+
+
+-- Добавляем индексы для новых полей
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
+CREATE INDEX idx_cart_user_id ON cart(user_id);
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+
+-- =====================================================
+-- ВСТАВКА ДАННЫХ (РОЛИ И ТЕСТОВЫЕ ПОЛЬЗОВАТЕЛИ)
+-- =====================================================
+
+-- Вставка ролей
+INSERT INTO roles (name, description) VALUES
+('ROLE_USER', 'Обычный пользователь'),
+('ROLE_ADMIN', 'Администратор системы'),
+('ROLE_MANAGER', 'Менеджер магазина');
+
+-- Вставка тестовых пользователей (пароль: 'password' захеширован BCrypt)
+-- Для тестов: password = '$2a$10$N.ZOn9J6.qPZc9O9QY2U8eF7XqZ3YxV5wW7rR8tT6uU9iI1oO2pP3S'
+INSERT INTO users (username, email, password, full_name, phone, enabled) VALUES
+('user', 'user@example.com', '$2a$10$N.ZOn9J6.qPZc9O9QY2U8eF7XqZ3YxV5wW7rR8tT6uU9iI1oO2pP3S', 'Тестовый Пользователь', '+7 (999) 123-45-67', true),
+('admin', 'admin@example.com', '$2a$10$N.ZOn9J6.qPZc9O9QY2U8eF7XqZ3YxV5wW7rR8tT6uU9iI1oO2pP3S', 'Администратор Системы', '+7 (999) 765-43-21', true);
+
+-- Назначение ролей пользователям
+INSERT INTO user_roles (user_id, role_id) VALUES
+(1, 1), -- user -> ROLE_USER
+(2, 1), -- admin -> ROLE_USER
+(2, 2); -- admin -> ROLE_ADMIN
+
+-- =====================================================
+-- КОММЕНТАРИИ К НОВЫМ ТАБЛИЦАМ
+-- =====================================================
+
+COMMENT ON TABLE users IS 'Пользователи системы';
+COMMENT ON TABLE roles IS 'Роли пользователей для авторизации';
+COMMENT ON TABLE user_roles IS 'Связь пользователей с ролями';
+COMMENT ON TABLE refresh_tokens IS 'Refresh токены для JWT аутентификации';
+
+-- =====================================================
+-- ФУНКЦИИ И ТРИГГЕРЫ ДЛЯ АВТОМАТИЧЕСКОГО ОБНОВЛЕНИЯ updated_at
+-- =====================================================
+
+-- Функция для обновления поля updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Триггеры для таблиц
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_items_updated_at BEFORE UPDATE ON items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_cart_updated_at BEFORE UPDATE ON cart FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_cart_items_updated_at BEFORE UPDATE ON cart_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- ДОПОЛНИТЕЛЬНЫЕ SQL ДЛЯ ОПТИМИЗАЦИИ
+-- =====================================================
+
+-- Функция для получения активной корзины пользователя
+CREATE OR REPLACE FUNCTION get_active_cart(p_user_id BIGINT)
+RETURNS BIGINT AS $$
+DECLARE
+    v_cart_id BIGINT;
+BEGIN
+    SELECT id INTO v_cart_id FROM cart WHERE user_id = p_user_id AND status = 'ACTIVE';
+    IF NOT FOUND THEN
+        INSERT INTO cart (user_id, status) VALUES (p_user_id, 'ACTIVE') RETURNING id INTO v_cart_id;
+    END IF;
+    RETURN v_cart_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Функция для очистки просроченных refresh токенов
+CREATE OR REPLACE FUNCTION cleanup_expired_refresh_tokens()
+RETURNS VOID AS $$
+BEGIN
+    DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = true;
+END;
+$$ LANGUAGE plpgsql;
