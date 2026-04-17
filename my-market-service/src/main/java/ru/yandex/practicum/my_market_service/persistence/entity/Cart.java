@@ -22,6 +22,9 @@ public class Cart {
     @Id
     private Long id;
 
+    @Column(value = "user_id")
+    private Long userId;
+
     @Column(value = "session_id")
     private String sessionId;
 

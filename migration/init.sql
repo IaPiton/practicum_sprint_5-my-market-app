@@ -130,11 +130,8 @@ CREATE TABLE refresh_tokens (
 
 -- Добавляем связь с пользователем в таблицу корзины
 ALTER TABLE cart ADD COLUMN user_id BIGINT;
-ALTER TABLE cart ADD CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-ALTER TABLE cart ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'; -- ACTIVE, CONVERTED_TO_ORDER
+ALTER TABLE cart ADD CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;-- ACTIVE, CONVERTED_TO_ORDER
 
--- Комментарий к полю cart.status
-COMMENT ON COLUMN cart.status IS 'Статус корзины: ACTIVE - активная, CONVERTED_TO_ORDER - преобразована в заказ';
 
 -- Добавляем связь с пользователем в таблицу заказов
 ALTER TABLE orders ADD COLUMN user_id BIGINT;

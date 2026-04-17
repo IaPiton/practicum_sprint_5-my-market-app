@@ -5,43 +5,43 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
-import ru.yandex.practicum.my_market_service.persistence.model.OrderStatus;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "orders")
-public class Order {
+@Table(name = "users")
+public class User {
 
     @Id
     private Long id;
 
-    @Column(value = "user_id")
-    private Long userId;
+    @Column(value = "username")
+    private String username;
 
-    @Column(value = "order_number")
-    private String orderNumber;
+    @Column(value = "email")
+    private String email;
 
-    @Column(value = "total_sum")
-    private Long totalSum;
+    @Column(value = "password")
+    private String password;
 
-    @Column(value = "status")
-    private OrderStatus status = OrderStatus.NEW;
+    @Column(value = "full_name")
+    private String fullName;
+
+    @Column(value = "phone")
+    private String phone;
+
+    @Column(value = "enabled")
+    private Boolean enabled;
 
     @Column(value = "created_at")
     private LocalDateTime createdAt;
 
     @Column(value = "updated_at")
     private LocalDateTime updatedAt;
-
-    @Transient
-    private List<OrderItem> orderItems = new ArrayList<>();
 }
