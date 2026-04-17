@@ -20,21 +20,47 @@ services:
       retries: 5
       start_period: 10s
 
-  market-app:
-    container_name: market-app
+  store-market-cache:
+    container_name: redis-cache
+    image: redis:7.4.2-bookworm
+    ports:
+      - '6379:6379'
+    networks:
+      - market-network
+
+  payment-service:
+    container_name: payment-service
     build:
-      context: .
+      context: ./payment-service/
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8081:8081"
+    networks:
+      - market-network
+
+  market-service:
+    container_name: market-service
+    build:
+      context: ./my-market-service/
       dockerfile: Dockerfile
     env_file:
       - .env
     environment:
       - POSTGRES_HOST=db-market
       - POSTGRES_PORT=5432
+      - PAYMENT_SERVICE_PORT=8081
+      - PAYMENT_SERVICE_HOST=payment-service
     ports:
       - "8080:8080"
     depends_on:
+      store-market-cache:
+        condition: service_started
       db-market:
         condition: service_healthy
+      payment-service:
+        condition: service_started
     networks:
       - market-network
 
