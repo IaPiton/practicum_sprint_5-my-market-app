@@ -64,6 +64,27 @@ services:
     networks:
       - market-network
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:21.1.1
+    environment:
+      KC_DB: dev-mem
+      KC_LOG_LEVEL: INFO
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_IMPORT: "true"
+      KC_IMPORT_REALM: /opt/keycloak/realm-shop.json
+    volumes:
+      - ./keycloak/realm-shop.json:/opt/keycloak/data/import/realm-shop.json:ro
+    command:
+      - start-dev
+      - --import-realm
+    ports:
+      - '8082:8080'
+    networks:
+      - market-network
+
 networks:
   market-network:
     driver: bridge

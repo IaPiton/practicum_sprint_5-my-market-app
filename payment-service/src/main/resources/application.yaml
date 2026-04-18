@@ -4,3 +4,11 @@ server:
 service:
   default-balance: ${DEFAULT_BALANCE:5000}
 
+spring:
+  application:
+    name: payment-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_SERVER:http://localhost:8082/realms/master}

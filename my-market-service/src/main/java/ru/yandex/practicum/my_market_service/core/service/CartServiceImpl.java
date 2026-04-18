@@ -8,6 +8,8 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_service.core.mapper.CartMapper;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
+import ru.yandex.practicum.my_market_service.core.security.OAuth2Service;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_service.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
@@ -33,16 +35,20 @@ public class CartServiceImpl implements CartService {
     private final CartMapper cartMapper;
     private final CartRepository cartRepository;
     private final PaymentApi paymentApi;
+    private final SecurityService securityService;
+    private final OAuth2Service oAuth2Service;
 
     @Override
-    public Mono<Long> getCurrentCartId(String sessionId) {
-        return cartRepository.findBySessionId(sessionId)
-                .switchIfEmpty(Mono.defer(() -> {
-                    Cart newCart = new Cart();
-                    newCart.setSessionId(sessionId);
-                    return cartRepository.save(newCart);
-                }))
-                .map(Cart::getId);
+    public Mono<Long> getCurrentCartId() {
+        return securityService.getCurrentUserId()
+                .flatMap(userId -> cartRepository.findByUserId(userId)
+                        .switchIfEmpty(Mono.defer(() -> {
+                            Cart newCart = new Cart();
+                            newCart.setUserId(userId);
+                            return cartRepository.save(newCart);
+                        }))
+                        .map(Cart::getId)
+                );
     }
 
     @Override
@@ -127,10 +133,14 @@ public class CartServiceImpl implements CartService {
 
     @Override
     public Mono<BigDecimal> getBalance() {
-        return paymentApi.getBalance()
+        return oAuth2Service
+                .getTokenValue()
+                .flatMap(accessToken -> {
+                    paymentApi.getApiClient().addDefaultHeader("Authorization", "Bearer " + accessToken);
+                    return paymentApi.getBalance();
+                })
                 .map(BalanceResponse::getBalance)
-                .onErrorResume(error ->
-                        Mono.just(BigDecimal.ONE.negate()));
+                .onErrorResume(error -> Mono.just(BigDecimal.ONE.negate()));
     }
 
     private Mono<Void> handlePlusAction(Cart cart, CartItem cartItem) {

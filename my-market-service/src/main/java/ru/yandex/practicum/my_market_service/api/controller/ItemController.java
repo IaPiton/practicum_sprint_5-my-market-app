@@ -5,7 +5,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.model.ItemUpdateRequest;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
@@ -20,7 +19,6 @@ public class ItemController {
 
     @GetMapping({"/", "/items"})
     public Mono<String> getItems(
-            WebSession session,
             @RequestParam(required = false, defaultValue = "") String search,
             @RequestParam(required = false, defaultValue = "NO") String sort,
             @RequestParam(required = false, defaultValue = "1") int pageNumber,
@@ -33,7 +31,7 @@ public class ItemController {
                 .defaultIfEmpty(false)
                 .flatMap(isAuth -> {
                     model.addAttribute("isAuthenticated", isAuth);
-                    return itemService.getItemsPage(search, sort, pageNumber, pageSize, session.getId());
+                    return itemService.getItemsPage(search, sort, pageNumber, pageSize);
                 })
                 .doOnNext(pageData -> {
                     model.addAttribute("items", pageData.getItemsGrid());
@@ -45,36 +43,32 @@ public class ItemController {
     }
 
     @GetMapping("/items/{id}")
-    public Mono<String> getItem(WebSession session,
-                                @PathVariable Long id,
+    public Mono<String> getItem(@PathVariable Long id,
                                 Model model) {
 
-        return itemService.getItemById(id, session.getId())
+        return itemService.getItemById(id)
                 .doOnNext(item -> model.addAttribute("item", item))
                 .thenReturn("item");
     }
 
     @PostMapping("/items")
-    public Mono<String> updateCartItem(WebSession session,
-                                       @ModelAttribute ItemUpdateRequest request) {
+    public Mono<String> updateCartItem(@ModelAttribute ItemUpdateRequest request) {
         return itemService.updateCartItemAndGetRedirectUrl(
                 request.getId(),
                 request.getSearch(),
                 request.getSort(),
                 request.getPageNumber(),
                 request.getPageSize(),
-                request.getAction(),
-                session.getId()
+                request.getAction()
         );
     }
 
     @PostMapping("/items/{id}")
     public Mono<String> updateCartItemFromItemPage(
-            WebSession session,
             @ModelAttribute ItemUpdateRequest request,
             Model model) {
 
-        return itemService.updateItemCountAndGetItem(request.getId(), request.getAction(), session.getId())
+        return itemService.updateItemCountAndGetItem(request.getId(), request.getAction())
                 .doOnNext(updatedItem -> model.addAttribute("item", updatedItem))
                 .thenReturn("item");
     }

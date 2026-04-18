@@ -7,5 +7,5 @@ import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 
 @Repository
 public interface CartRepository extends R2dbcRepository<Cart, Long> {
-    Mono<Cart> findBySessionId(String sessionId);
+    Mono<Cart> findByUserId(Long userId);
 }

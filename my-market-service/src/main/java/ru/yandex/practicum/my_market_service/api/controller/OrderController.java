@@ -23,7 +23,7 @@ public class OrderController {
 
     @PostMapping("/buy")
     public Mono<String> buy(WebSession session) {
-        return cartService.getCurrentCartId(session.getId())
+        return cartService.getCurrentCartId()
                 .flatMap(orderService::createOrderFromCart)
                 .map(order -> {
                     session.getAttributes().remove("paymentError");

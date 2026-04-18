@@ -26,6 +26,7 @@ public class SecurityService {
                 })
                 .cast(String.class)
                 .flatMap(userService::findByName)
-                .map(UserDto::getId);
+                .map(UserDto::getId)
+                .defaultIfEmpty(1L);
     }
 }

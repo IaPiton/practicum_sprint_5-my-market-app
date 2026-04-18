@@ -25,9 +25,6 @@ public class Cart {
     @Column(value = "user_id")
     private Long userId;
 
-    @Column(value = "session_id")
-    private String sessionId;
-
     @Column(value = "created_at")
     private LocalDateTime createdAt;
 

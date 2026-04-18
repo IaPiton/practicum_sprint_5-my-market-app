@@ -9,3 +9,18 @@ spring:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
     url: r2dbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            provider: keycloak
+            authorizationGrantType: client_credentials
+            client-id: market-client-api
+            client-secret: wz7Y0i5otfbsXtSzke3cVu8aKrCROrKg
+            scope: profile
+            clientAuthenticationMethod: client_secret_post
+        provider:
+          keycloak:
+            issuer-uri: ${OAUTH2_SERVER:http://localhost:8082/realms/master}
