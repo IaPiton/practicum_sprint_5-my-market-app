@@ -1,0 +1,26 @@
+{
+  "realm": "market-realm",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "market-client-api",
+      "name": "market",
+      "enabled": true,
+      "secret": "MSdPi8jdNgQkPCxUnivBoQ9B09LxtORX",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "redirectUris": ["/*"],
+      "webOrigins": ["/*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-market-client-api",
+      "enabled": true,
+      "serviceAccountClientId": "market-client-api",
+      "credentials": []
+    }
+  ]
+}

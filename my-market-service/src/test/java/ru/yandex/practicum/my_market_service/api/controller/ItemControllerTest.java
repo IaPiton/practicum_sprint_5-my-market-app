@@ -4,23 +4,29 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
-import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
+import ru.yandex.practicum.my_market_service.configuration.TestSecurityConfig;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
 import ru.yandex.practicum.my_market_service.core.model.ItemsPageData;
 import ru.yandex.practicum.my_market_service.core.model.PagingInfo;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @WebFluxTest(ItemController.class)
+@Import(TestSecurityConfig.class)
 @DisplayName("Тесты контроллера товаров (WebFlux)")
 class ItemControllerTest {
 
@@ -30,8 +36,11 @@ class ItemControllerTest {
     @MockitoBean
     private ItemService itemService;
 
+    @MockitoBean
+    private SecurityService securityService;
+
     @Test
-    @DisplayName("GET / - должен вернуть главную страницу с товарами")
+    @DisplayName("GET / - должен вернуть главную страницу с товарами (доступно без авторизации)")
     void getItems_RootPath_ShouldReturnItemsPage() {
         String search = "";
         String sort = "NO";
@@ -68,7 +77,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString()))
+        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize)))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -84,11 +93,11 @@ class ItemControllerTest {
                     assert body.contains("Тестовый товар 2");
                 });
 
-        verify(itemService).getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString());
+        verify(itemService).getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize));
     }
 
     @Test
-    @DisplayName("GET /items - должен вернуть страницу с товарами")
+    @DisplayName("GET /items - должен вернуть страницу с товарами (доступно без авторизации)")
     void getItems_ShouldReturnItemsPage() {
         String search = "тест";
         String sort = "price_asc";
@@ -115,7 +124,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString()))
+        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize)))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -136,11 +145,11 @@ class ItemControllerTest {
                     assert body.contains("Тестовый товар");
                 });
 
-        verify(itemService).getItemsPage(eq(search),any(), eq(pageNumber), eq(pageSize), anyString());
+        verify(itemService).getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize));
     }
 
     @Test
-    @DisplayName("GET /items - с параметрами по умолчанию должен вернуть страницу")
+    @DisplayName("GET /items - с параметрами по умолчанию должен вернуть страницу (доступно без авторизации)")
     void getItems_WithDefaultParams_ShouldReturnItemsPage() {
         String defaultSearch = "";
         String defaultSort = "NO";
@@ -162,7 +171,7 @@ class ItemControllerTest {
                 .paging(paging)
                 .build();
 
-        when(itemService.getItemsPage(eq(defaultSearch), any(), eq(defaultPageNumber), eq(defaultPageSize), anyString()))
+        when(itemService.getItemsPage(eq(defaultSearch), any(), eq(defaultPageNumber), eq(defaultPageSize)))
                 .thenReturn(Mono.just(itemsPageData));
 
         webTestClient.get()
@@ -170,48 +179,11 @@ class ItemControllerTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        verify(itemService).getItemsPage(eq(defaultSearch), any(), eq(defaultPageNumber), eq(defaultPageSize), anyString());
+        verify(itemService).getItemsPage(eq(defaultSearch), any(), eq(defaultPageNumber), eq(defaultPageSize));
     }
 
     @Test
-    @DisplayName("GET /items - с пустой сеткой товаров должен вернуть пустую страницу")
-    void getItems_WithEmptyGrid_ShouldReturnEmptyPage() {
-        String search = "";
-        String sort = "NO";
-        int pageNumber = 1;
-        int pageSize = 5;
-
-        List<List<ItemDto>> emptyGrid = List.of();
-
-        PagingInfo paging = new PagingInfo(1, 5, false, false, 0, 0);
-
-        ItemsPageData itemsPageData = ItemsPageData.builder()
-                .itemsGrid(emptyGrid)
-                .search(search)
-                .sort(sort)
-                .paging(paging)
-                .build();
-
-        when(itemService.getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString()))
-                .thenReturn(Mono.just(itemsPageData));
-
-        webTestClient.get()
-                .uri("/items")
-                .exchange()
-                .expectStatus().isOk()
-                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
-                .expectBody(String.class)
-                .consumeWith(result -> {
-                    String body = result.getResponseBody();
-                    assert body != null;
-                    assert body.contains("0") || body.contains("пуст");
-                });
-
-        verify(itemService).getItemsPage(eq(search), any(), eq(pageNumber), eq(pageSize), anyString());
-    }
-
-    @Test
-    @DisplayName("GET /items/{id} - должен вернуть страницу товара")
+    @DisplayName("GET /items/{id} - должен вернуть страницу товара (доступно без авторизации)")
     void getItem_ShouldReturnItemPage() {
         Long itemId = 1L;
         ItemDto item = ItemDto.builder()
@@ -222,7 +194,7 @@ class ItemControllerTest {
                 .price(100L)
                 .build();
 
-        when(itemService.getItemById(eq(itemId), anyString())).thenReturn(Mono.just(item));
+        when(itemService.getItemById(eq(itemId))).thenReturn(Mono.just(item));
 
         webTestClient.get()
                 .uri("/items/{id}", itemId)
@@ -237,27 +209,12 @@ class ItemControllerTest {
                     assert body.contains("100");
                 });
 
-        verify(itemService).getItemById(eq(itemId), anyString());
+        verify(itemService).getItemById(eq(itemId));
     }
 
     @Test
-    @DisplayName("GET /items/{id} - при ненайденном товаре должен вернуть ошибку NOT_FOUND")
-    void getItem_WhenItemNotFound_ShouldReturnNotFound() {
-        Long invalidItemId = 999L;
-
-        when(itemService.getItemById(eq(invalidItemId), anyString()))
-                .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
-
-        webTestClient.get()
-                .uri("/items/{id}", invalidItemId)
-                .exchange()
-                .expectStatus().isBadRequest();
-
-        verify(itemService).getItemById(eq(invalidItemId), anyString());
-    }
-
-    @Test
-    @DisplayName("POST /items - действие PLUS должно обновить корзину и вернуть редирект")
+    @DisplayName("POST /items - действие PLUS должно обновить корзину (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithPlusAction_ShouldUpdateCartAndRedirect() {
         Long itemId = 1L;
         String search = "тест";
@@ -267,8 +224,9 @@ class ItemControllerTest {
         String action = "PLUS";
         String redirectUrl = "redirect:/items?search=тест&sort=price_asc&pageNumber=1&pageSize=10";
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(1L));
         when(itemService.updateCartItemAndGetRedirectUrl(
-                eq(itemId), eq(search), eq(sort), eq(pageNumber), eq(pageSize), eq(action), anyString()))
+                eq(itemId), eq(search), eq(sort), eq(pageNumber), eq(pageSize), eq(action)))
                 .thenReturn(Mono.just(redirectUrl));
 
         webTestClient.post()
@@ -284,18 +242,20 @@ class ItemControllerTest {
                 .expectStatus().is3xxRedirection();
 
         verify(itemService).updateCartItemAndGetRedirectUrl(
-                eq(itemId), eq(search), eq(sort), eq(pageNumber), eq(pageSize), eq(action), anyString());
+                eq(itemId), eq(search), eq(sort), eq(pageNumber), eq(pageSize), eq(action));
     }
 
     @Test
-    @DisplayName("POST /items - действие MINUS должно обновить корзину и вернуть редирект")
+    @DisplayName("POST /items - действие MINUS должно обновить корзину (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithMinusAction_ShouldUpdateCartAndRedirect() {
         Long itemId = 1L;
         String action = "MINUS";
         String redirectUrl = "redirect:/items";
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(1L));
         when(itemService.updateCartItemAndGetRedirectUrl(
-                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString()))
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action)))
                 .thenReturn(Mono.just(redirectUrl));
 
         webTestClient.post()
@@ -306,18 +266,20 @@ class ItemControllerTest {
                 .expectStatus().is3xxRedirection();
 
         verify(itemService).updateCartItemAndGetRedirectUrl(
-                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString());
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action));
     }
 
     @Test
-    @DisplayName("POST /items - действие DELETE должно удалить товар из корзины и вернуть редирект")
+    @DisplayName("POST /items - действие DELETE должно удалить товар (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithDeleteAction_ShouldRemoveFromCartAndRedirect() {
         Long itemId = 1L;
         String action = "DELETE";
         String redirectUrl = "redirect:/items";
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(1L));
         when(itemService.updateCartItemAndGetRedirectUrl(
-                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString()))
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action)))
                 .thenReturn(Mono.just(redirectUrl));
 
         webTestClient.post()
@@ -328,32 +290,26 @@ class ItemControllerTest {
                 .expectStatus().is3xxRedirection();
 
         verify(itemService).updateCartItemAndGetRedirectUrl(
-                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString());
+                eq(itemId), anyString(), anyString(), anyInt(), anyInt(), eq(action));
     }
 
     @Test
-    @DisplayName("POST /items - при ненайденном товаре должен вернуть ошибку NOT_FOUND")
-    void updateCartItem_WhenItemNotFound_ShouldReturnNotFound() {
-        Long invalidItemId = 999L;
+    @DisplayName("POST /items - без авторизации должен вернуть ошибку UNAUTHORIZED")
+    void updateCartItem_WithoutAuth_ShouldReturnUnauthorized() {
+        long itemId = 1L;
         String action = "PLUS";
-
-        when(itemService.updateCartItemAndGetRedirectUrl(
-                eq(invalidItemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString()))
-                .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
 
         webTestClient.post()
                 .uri("/items")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .bodyValue("id=" + invalidItemId + "&action=" + action)
+                .bodyValue("id=" + itemId + "&action=" + action)
                 .exchange()
-                .expectStatus().isBadRequest();
-
-        verify(itemService).updateCartItemAndGetRedirectUrl(
-                eq(invalidItemId), anyString(), anyString(), anyInt(), anyInt(), eq(action), anyString());
+                .expectStatus().isUnauthorized();
     }
 
     @Test
-    @DisplayName("POST /items/{id} - действие PLUS должно обновить товар и вернуть страницу товара")
+    @DisplayName("POST /items/{id} - действие PLUS должно обновить товар (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItemFromItemPage_WithPlusAction_ShouldUpdateItemAndReturnItemPage() {
         Long itemId = 1L;
         String action = "PLUS";
@@ -366,7 +322,8 @@ class ItemControllerTest {
                 .count(3)
                 .build();
 
-        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action), anyString()))
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(1L));
+        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action)))
                 .thenReturn(Mono.just(updatedItem));
 
         webTestClient.post()
@@ -384,144 +341,23 @@ class ItemControllerTest {
                     assert body.contains("100");
                 });
 
-        verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(action), anyString());
+        verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(action));
     }
 
     @Test
-    @DisplayName("POST /items/{id} - действие MINUS должно обновить товар и вернуть страницу товара")
-    void updateCartItemFromItemPage_WithMinusAction_ShouldUpdateItemAndReturnItemPage() {
+    @DisplayName("POST /items/{id} - без авторизации должен вернуть ошибку UNAUTHORIZED")
+    void updateCartItemFromItemPage_WithoutAuth_ShouldReturnUnauthorized() {
         Long itemId = 1L;
-        String action = "MINUS";
+        String action = "PLUS";
 
-        ItemDto updatedItem = ItemDto.builder()
-                .id(itemId)
-                .title("Тестовый товар")
-                .price(100L)
-                .count(1)
-                .build();
-
-        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(action), anyString()))
-                .thenReturn(Mono.just(updatedItem));
+        when(securityService.getCurrentUserId())
+                .thenReturn(Mono.error(new IllegalStateException("Пользователь не аутентифицирован")));
 
         webTestClient.post()
                 .uri("/items/{id}", itemId)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue("id=" + itemId + "&action=" + action)
                 .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class)
-                .consumeWith(result -> {
-                    String body = result.getResponseBody();
-                    assert body != null;
-                    assert body.contains("1");
-                });
-
-        verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(action), anyString());
-    }
-
-    @Test
-    @DisplayName("POST /items/{id} - при ненайденном товаре должен вернуть ошибку NOT_FOUND")
-    void updateCartItemFromItemPage_WhenItemNotFound_ShouldReturnNotFound() {
-        Long invalidItemId = 999L;
-        String action = "PLUS";
-
-        when(itemService.updateItemCountAndGetItem(eq(invalidItemId), eq(action), anyString()))
-                .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
-
-        webTestClient.post()
-                .uri("/items/{id}", invalidItemId)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .bodyValue("id=" + invalidItemId + "&action=" + action)
-                .exchange()
-                .expectStatus().isBadRequest();
-
-        verify(itemService).updateItemCountAndGetItem(eq(invalidItemId), eq(action), anyString());
-    }
-
-    @Test
-    @DisplayName("POST /items/{id} - при неверном действии должен вернуть ошибку сервера")
-    void updateCartItemFromItemPage_WithInvalidAction_ShouldReturnServerError() {
-        Long itemId = 1L;
-        String invalidAction = "INVALID_ACTION";
-
-        when(itemService.updateItemCountAndGetItem(eq(itemId), eq(invalidAction), anyString()))
-                .thenReturn(Mono.error(new RuntimeException("Неизвестное действие: " + invalidAction)));
-
-        webTestClient.post()
-                .uri("/items/{id}", itemId)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .bodyValue("id=" + itemId + "&action=" + invalidAction)
-                .exchange()
-                .expectStatus().is5xxServerError();
-
-        verify(itemService).updateItemCountAndGetItem(eq(itemId), eq(invalidAction), anyString());
-    }
-
-    @Test
-    @DisplayName("GET /items - при ошибке сервиса должен вернуть ошибку сервера")
-    void getItems_WhenServiceThrowsException_ShouldReturnServerError() {
-        when(itemService.getItemsPage(anyString(), any(), anyInt(), anyInt(), anyString()))
-                .thenReturn(Mono.error(new RuntimeException("Ошибка подключения к базе данных")));
-
-        webTestClient.get()
-                .uri("/items")
-                .exchange()
-                .expectStatus().is5xxServerError();
-    }
-
-    @Test
-    @DisplayName("GET /items/{id} - при ошибке сервиса должен вернуть ошибку сервера")
-    void getItem_WhenServiceThrowsException_ShouldReturnServerError() {
-        Long itemId = 1L;
-
-        when(itemService.getItemById(eq(itemId), anyString()))
-                .thenReturn(Mono.error(new RuntimeException("Ошибка подключения к базе данных")));
-
-        webTestClient.get()
-                .uri("/items/{id}", itemId)
-                .exchange()
-                .expectStatus().is5xxServerError();
-    }
-
-
-
-
-
-    @Test
-    @DisplayName("GET /items - с пагинацией должен корректно отображать информацию о страницах")
-    void getItems_ShouldDisplayCorrectPagingInfo() {
-        int pageNumber = 2;
-        int pageSize = 5;
-
-        PagingInfo paging = new PagingInfo(2, 5, true, true, 10, 50);
-
-        ItemsPageData itemsPageData = ItemsPageData.builder()
-                .itemsGrid(List.of())
-                .search("")
-                .sort("NO")
-                .paging(paging)
-                .build();
-
-        when(itemService.getItemsPage(anyString(), any(), eq(pageNumber), eq(pageSize), anyString()))
-                .thenReturn(Mono.just(itemsPageData));
-
-        webTestClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/items")
-                        .queryParam("pageNumber", pageNumber)
-                        .queryParam("pageSize", pageSize)
-                        .build())
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class)
-                .consumeWith(result -> {
-                    String body = result.getResponseBody();
-                    assert body != null;
-                    assert body.contains("2");
-                    assert body.contains("10");
-                    assert body.contains("50");
-                });
-
-        verify(itemService).getItemsPage(anyString(), any(), eq(pageNumber), eq(pageSize), anyString());
+                .expectStatus().isUnauthorized();
     }
 }

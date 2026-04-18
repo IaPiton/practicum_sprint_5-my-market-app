@@ -3,12 +3,16 @@ package ru.yandex.practicum.my_market_service.core.service;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.my_market_service.configuration.TestcontainersTest;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
+import ru.yandex.practicum.my_market_service.core.security.OAuth2Service;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.repository.CartItemRepository;
@@ -34,13 +38,18 @@ class CartServiceImplTest extends TestcontainersTest {
     private CartItemRepository cartItemRepository;
 
     @Autowired
+    private SecurityService securityService;
+
+    @Autowired
+    private OAuth2Service oAuth2Service;
+
+    @Autowired
     private ItemRepository itemRepository;
 
     private Cart testCart;
     private Item testItem1;
     private Item testItem2;
     private Item testItem3;
-    private String testSessionId;
 
     @BeforeEach
     void setUp() {
@@ -48,10 +57,9 @@ class CartServiceImplTest extends TestcontainersTest {
         cartRepository.deleteAll().block();
         itemRepository.deleteAll().block();
 
-        testSessionId = "test-session-" + System.currentTimeMillis();
-
         testCart = new Cart();
-        testCart.setSessionId(testSessionId);
+        Long userId = 3L;
+        testCart.setUserId(userId);
         testCart = cartRepository.save(testCart).block();
 
         testItem1 = new Item();
@@ -100,10 +108,9 @@ class CartServiceImplTest extends TestcontainersTest {
         @Test
         @DisplayName("Должен создать новую корзину, если её не существует")
         void shouldCreateNewCartWhenNotExists() {
-            String newSessionId = "new-session-" + System.currentTimeMillis();
 
             StepVerifier.create(
-                    cartService.getCurrentCartId(newSessionId)
+                    cartService.getCurrentCartId()
                             .flatMap(cartId ->
                                     cartRepository.findById(cartId)
                                             .map(savedCart -> new Object() {
@@ -113,35 +120,15 @@ class CartServiceImplTest extends TestcontainersTest {
                             )
             ).assertNext(pair -> {
                 assertThat(pair.id).isNotNull();
-                assertThat(pair.cart.getSessionId()).isEqualTo(newSessionId);
             }).verifyComplete();
         }
 
         @Test
         @DisplayName("Должен вернуть существующую корзину по sessionId")
         void shouldReturnExistingCartBySessionId() {
-            StepVerifier.create(cartService.getCurrentCartId(testSessionId))
+            StepVerifier.create(cartService.getCurrentCartId())
                     .assertNext(cartId -> assertThat(cartId).isEqualTo(testCart.getId()))
                     .verifyComplete();
-        }
-
-        @Test
-        @DisplayName("Должен создавать разные корзины для разных sessionId")
-        void shouldCreateDifferentCartsForDifferentSessions() {
-            String session1 = "session-1-" + System.currentTimeMillis();
-            String session2 = "session-2-" + System.currentTimeMillis();
-
-            Long cartId1 = cartService.getCurrentCartId(session1).block();
-
-            Long cartId2 = cartService.getCurrentCartId(session2).block();
-
-            assertThat(cartId1).isNotEqualTo(cartId2);
-
-            Cart cart1 = cartRepository.findById(Objects.requireNonNull(cartId1)).block();
-            assertThat(Objects.requireNonNull(cart1).getSessionId()).isEqualTo(session1);
-
-            Cart cart2 = cartRepository.findById(Objects.requireNonNull(cartId2)).block();
-            assertThat(Objects.requireNonNull(cart2).getSessionId()).isEqualTo(session2);
         }
 
         @Nested

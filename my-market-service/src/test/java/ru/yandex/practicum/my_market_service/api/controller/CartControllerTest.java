@@ -4,14 +4,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.handler.CartNotFoundException;
 import ru.yandex.practicum.my_market_service.api.handler.ItemNotFoundException;
+import ru.yandex.practicum.my_market_service.configuration.TestSecurityConfig;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
 import ru.yandex.practicum.my_market_service.core.service.ItemCacheService;
 import ru.yandex.practicum.my_market_service.core.service.ItemService;
@@ -22,9 +26,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @WebFluxTest(CartController.class)
+@Import(TestSecurityConfig.class)
 @DisplayName("Тесты контроллера корзины (WebFlux)")
 class CartControllerTest {
 
@@ -40,10 +46,15 @@ class CartControllerTest {
     @MockitoBean
     private ItemCacheService itemCacheService;
 
+    @MockitoBean
+    private SecurityService securityService;
+
     @Test
-    @DisplayName("GET /cart/items - должен вернуть страницу корзины с товарами")
+    @DisplayName("GET /cart/items - должен вернуть страницу корзины с товарами (требуется авторизация)")
+    @WithMockUser(username = "user")
     void getCartItems_ShouldReturnCartPageWithItems() {
         Long cartId = 1L;
+        Long userId = 1L;
         List<CartItemDto> items = Arrays.asList(
                 CartItemDto.builder()
                         .id(1L)
@@ -66,8 +77,9 @@ class CartControllerTest {
         );
         long total = 350L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(items));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
 
@@ -85,20 +97,37 @@ class CartControllerTest {
                     assert body.contains("350");
                 });
 
-        verify(cartService).getCurrentCartId(anyString());
+        verify(cartService).getCurrentCartId();
         verify(cartService).getCartItemsWithDetails(cartId);
         verify(cartService).getCartTotal(cartId);
     }
 
     @Test
-    @DisplayName("GET /cart/items - когда корзина пуста, должен вернуть пустую страницу корзины")
+    @DisplayName("GET /cart/items - без авторизации должен вернуть ошибку UNAUTHORIZED")
+    void getCartItems_WithoutAuth_ShouldReturnUnauthorized() {
+        when(securityService.getCurrentUserId())
+                .thenReturn(Mono.error(new IllegalStateException("Пользователь не аутентифицирован")));
+
+        webTestClient.get()
+                .uri("/cart/items")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verify(cartService, never()).getCurrentCartId();
+    }
+
+    @Test
+    @DisplayName("GET /cart/items - когда корзина пуста, должен вернуть пустую страницу корзины (требуется авторизация)")
+    @WithMockUser(username = "user")
     void getCartItems_WhenCartIsEmpty_ShouldReturnEmptyCartPage() {
         Long cartId = 1L;
+        Long userId = 1L;
         List<CartItemDto> emptyItems = Collections.emptyList();
         long total = 0L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(emptyItems));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
 
@@ -119,9 +148,11 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("POST /cart/items - действие PLUS должно увеличить количество товара в корзине")
+    @DisplayName("POST /cart/items - действие PLUS должно увеличить количество товара в корзине (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithPlusAction_ShouldIncreaseItemCount() {
         Long cartId = 1L;
+        Long userId = 1L;
         Long itemId = 1L;
         String action = "PLUS";
 
@@ -141,8 +172,9 @@ class CartControllerTest {
         );
         long total = 300L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(action))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(updatedItems));
@@ -162,7 +194,7 @@ class CartControllerTest {
                     assert body.contains("300");
                 });
 
-        verify(cartService).getCurrentCartId(anyString());
+        verify(cartService).getCurrentCartId();
         verify(itemCacheService).getItemEntityById(itemId);
         verify(cartService).updateItemCount(cartId, item, action);
         verify(cartService).getCartItemsWithDetails(cartId);
@@ -170,9 +202,31 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("POST /cart/items - действие MINUS должно уменьшить количество товара в корзине")
+    @DisplayName("POST /cart/items - без авторизации должен вернуть ошибку UNAUTHORIZED")
+    void updateCartItem_WithoutAuth_ShouldReturnUnauthorized() {
+        long itemId = 1L;
+        String action = "PLUS";
+
+        when(securityService.getCurrentUserId())
+                .thenReturn(Mono.error(new IllegalStateException("Пользователь не аутентифицирован")));
+
+        webTestClient.post()
+                .uri("/cart/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("id=" + itemId + "&action=" + action)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verify(cartService, never()).getCurrentCartId();
+        verify(itemCacheService, never()).getItemEntityById(anyLong());
+    }
+
+    @Test
+    @DisplayName("POST /cart/items - действие MINUS должно уменьшить количество товара в корзине (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithMinusAction_ShouldDecreaseItemCount() {
         Long cartId = 1L;
+        Long userId = 1L;
         Long itemId = 1L;
         String action = "MINUS";
 
@@ -192,8 +246,9 @@ class CartControllerTest {
         );
         long total = 100L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(action))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(updatedItems));
@@ -217,9 +272,11 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("POST /cart/items - действие DELETE должно удалить товар из корзины")
+    @DisplayName("POST /cart/items - действие DELETE должно удалить товар из корзины (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithDeleteAction_ShouldRemoveItemFromCart() {
         Long cartId = 1L;
+        Long userId = 1L;
         Long itemId = 1L;
         String action = "DELETE";
 
@@ -231,8 +288,9 @@ class CartControllerTest {
         List<CartItemDto> updatedItems = Collections.emptyList();
         long total = 0L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(action))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(updatedItems));
@@ -256,13 +314,16 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("POST /cart/items - при ненайденной корзине должен вернуть ошибку BAD_REQUEST")
+    @DisplayName("POST /cart/items - при ненайденной корзине должен вернуть ошибку BAD_REQUEST (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WhenCartNotFound_ShouldReturnBadRequest() {
+        Long userId = 1L;
         long itemId = 1L;
         String action = "PLUS";
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString()))
+        when(cartService.getCurrentCartId())
                 .thenReturn(Mono.error(new CartNotFoundException("Корзина не найдена")));
 
         webTestClient.post()
@@ -272,19 +333,22 @@ class CartControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        verify(cartService).getCurrentCartId(anyString());
+        verify(cartService).getCurrentCartId();
         verify(itemCacheService, never()).getItemEntityById(anyLong());
     }
 
     @Test
-    @DisplayName("POST /cart/items - при ненайденном товаре должен вернуть ошибку BAD_REQUEST")
+    @DisplayName("POST /cart/items - при ненайденном товаре должен вернуть ошибку BAD_REQUEST (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WhenItemNotFound_ShouldReturnBadRequest() {
         Long cartId = 1L;
+        Long userId = 1L;
         Long invalidItemId = 999L;
         String action = "PLUS";
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(itemCacheService.getItemEntityById(invalidItemId))
                 .thenReturn(Mono.error(new ItemNotFoundException("Товар с ID " + invalidItemId + " не найден")));
 
@@ -300,17 +364,20 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("POST /cart/items - при неверном действии должен вернуть ошибку INTERNAL_SERVER_ERROR")
+    @DisplayName("POST /cart/items - при неверном действии должен вернуть ошибку INTERNAL_SERVER_ERROR (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_WithInvalidAction_ShouldReturnInternalServerError() {
         Long cartId = 1L;
+        Long userId = 1L;
         Long itemId = 1L;
         String invalidAction = "INVALID_ACTION";
 
         Item item = new Item();
         item.setId(itemId);
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq(invalidAction)))
                 .thenReturn(Mono.error(new RuntimeException("Неизвестное действие: " + invalidAction)));
@@ -326,9 +393,13 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("GET /cart/items - при ошибке сервиса должен вернуть INTERNAL_SERVER_ERROR")
+    @DisplayName("GET /cart/items - при ошибке сервиса должен вернуть INTERNAL_SERVER_ERROR (требуется авторизация)")
+    @WithMockUser(username = "user")
     void getCartItems_WhenServiceThrowsException_ShouldReturnInternalServerError() {
-        when(cartService.getCurrentCartId(anyString()))
+        Long userId = 1L;
+
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
+        when(cartService.getCurrentCartId())
                 .thenReturn(Mono.error(new RuntimeException("Ошибка подключения к базе данных")));
 
         webTestClient.get()
@@ -338,9 +409,11 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("GET /cart/items - должен корректно отображать несколько товаров в корзине")
+    @DisplayName("GET /cart/items - должен корректно отображать несколько товаров в корзине (требуется авторизация)")
+    @WithMockUser(username = "user")
     void getCartItems_WithMultipleItems_ShouldDisplayAllItems() {
         Long cartId = 1L;
+        Long userId = 1L;
         List<CartItemDto> items = Arrays.asList(
                 CartItemDto.builder().id(1L).title("Товар A").price(100L).count(2).subtotal(200L).build(),
                 CartItemDto.builder().id(2L).title("Товар B").price(200L).count(1).subtotal(200L).build(),
@@ -348,8 +421,9 @@ class CartControllerTest {
         );
         long total = 850L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(items));
         when(cartService.getCartTotal(cartId)).thenReturn(Mono.just(total));
 
@@ -373,9 +447,11 @@ class CartControllerTest {
     }
 
     @Test
-    @DisplayName("POST /cart/items - несколько последовательных обновлений корзины")
+    @DisplayName("POST /cart/items - несколько последовательных обновлений корзины (требуется авторизация)")
+    @WithMockUser(username = "user")
     void updateCartItem_MultipleUpdates_ShouldHandleCorrectly() {
         Long cartId = 1L;
+        Long userId = 1L;
         Long itemId = 1L;
 
         Item item = new Item();
@@ -388,8 +464,9 @@ class CartControllerTest {
         );
         long totalAfterPlus = 300L;
 
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
         when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
-        when(cartService.getCurrentCartId(anyString())).thenReturn(Mono.just(cartId));
+        when(cartService.getCurrentCartId()).thenReturn(Mono.just(cartId));
         when(itemCacheService.getItemEntityById(itemId)).thenReturn(Mono.just(item));
         when(cartService.updateItemCount(eq(cartId), eq(item), eq("PLUS"))).thenReturn(Mono.empty());
         when(cartService.getCartItemsWithDetails(cartId)).thenReturn(Flux.fromIterable(itemsAfterPlus));
@@ -430,17 +507,19 @@ class CartControllerTest {
                     assert body.contains("200");
                 });
 
-        verify(cartService, times(2)).getCurrentCartId(anyString());
+        verify(cartService, times(2)).getCurrentCartId();
         verify(itemCacheService, times(2)).getItemEntityById(itemId);
         verify(cartService).updateItemCount(cartId, item, "PLUS");
         verify(cartService).updateItemCount(cartId, item, "MINUS");
     }
 
     @Test
-    @DisplayName("GET /cart/items - должен создавать новую сессию для разных запросов")
+    @DisplayName("GET /cart/items - должен создавать новую сессию для разных запросов (требуется авторизация)")
+    @WithMockUser(username = "user")
     void getCartItems_ShouldHandleSessionCorrectly() {
         Long cartId1 = 1L;
         Long cartId2 = 2L;
+        Long userId = 1L;
 
         List<CartItemDto> items1 = List.of(
                 CartItemDto.builder().id(1L).title("Товар 1").price(100L).count(1).subtotal(100L).build()
@@ -452,10 +531,11 @@ class CartControllerTest {
         );
         long total2 = 200L;
 
-        when(cartService.getCurrentCartId(anyString()))
+        when(securityService.getCurrentUserId()).thenReturn(Mono.just(userId));
+        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
+        when(cartService.getCurrentCartId())
                 .thenReturn(Mono.just(cartId1))
                 .thenReturn(Mono.just(cartId2));
-        when(cartService.getBalance()).thenReturn(Mono.just(new BigDecimal(1000)));
         when(cartService.getCartItemsWithDetails(cartId1)).thenReturn(Flux.fromIterable(items1));
         when(cartService.getCartTotal(cartId1)).thenReturn(Mono.just(total1));
         when(cartService.getCartItemsWithDetails(cartId2)).thenReturn(Flux.fromIterable(items2));
@@ -485,6 +565,6 @@ class CartControllerTest {
                     assert body.contains("200");
                 });
 
-        verify(cartService, times(2)).getCurrentCartId(anyString());
+        verify(cartService, times(2)).getCurrentCartId();
     }
 }

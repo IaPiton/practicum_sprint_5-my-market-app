@@ -17,10 +17,10 @@ spring:
           keycloak:
             provider: keycloak
             authorizationGrantType: client_credentials
-            client-id: market-client-api
-            client-secret: wz7Y0i5otfbsXtSzke3cVu8aKrCROrKg
+            client-id: ${OAUTH2_CLIENT:market-client-api}
+            client-secret: ${OAUTH2_SECRET:wz7Y0i5otfbsXtSzke3cVu8aKrCROrKg}
             scope: profile
             clientAuthenticationMethod: client_secret_post
         provider:
           keycloak:
-            issuer-uri: ${OAUTH2_SERVER:http://localhost:8082/realms/master}
+            issuer-uri: ${OAUTH2_HOST:http://localhost:8082}${OAUTH2_SERVER_URL:/realms/master}

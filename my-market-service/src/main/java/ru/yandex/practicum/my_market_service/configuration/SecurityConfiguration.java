@@ -96,4 +96,6 @@ public class SecurityConfiguration {
     public ServerOAuth2AuthorizedClientRepository authorizedClientRepository() {
         return new WebSessionServerOAuth2AuthorizedClientRepository();
     }
+
+
 }

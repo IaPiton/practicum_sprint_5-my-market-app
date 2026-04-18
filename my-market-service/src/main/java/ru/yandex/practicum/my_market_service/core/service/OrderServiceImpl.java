@@ -13,6 +13,7 @@ import ru.yandex.practicum.my_market_service.core.mapper.OrderMapper;
 import ru.yandex.practicum.my_market_service.core.model.OrderDto;
 import ru.yandex.practicum.my_market_service.core.model.OrderItemContext;
 import ru.yandex.practicum.my_market_service.core.model.OrderTotalContext;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_service.persistence.entity.Order;
 import ru.yandex.practicum.my_market_service.persistence.entity.OrderItem;
@@ -40,6 +41,7 @@ public class OrderServiceImpl implements OrderService {
     private final ItemRepository itemRepository;
     private final OrderMapper orderMapper;
     private final PaymentApi paymentApi;
+    private final SecurityService securityService;
 
 
     @Override
@@ -53,9 +55,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Cacheable(value = "allOrders", unless = "#result == null")
-    public Flux<OrderDto> getAllOrders() {
-        return orderRepository.findAllOrderByCreatedAtDesc()
+    @Cacheable(value = "allOrders", key = "#userId", unless = "#result == null")
+    public Flux<OrderDto> getAllOrders(Long userId) {
+        return orderRepository.findAllOrderByUserIdByCreatedAtDesc(userId)
                 .collectList()
                 .flatMapMany(orders -> Flux.fromIterable(orders)
                         .flatMap(order -> orderItemRepository.findOrderItemByOrderId(order.getId())
@@ -108,17 +110,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private Mono<Order> createOrder(OrderTotalContext context) {
-        Order order = new Order();
-        order.setOrderNumber(generateOrderNumber());
-        order.setStatus(OrderStatus.NEW);
-        order.setCreatedAt(LocalDateTime.now());
-        order.setUpdatedAt(LocalDateTime.now());
-        order.setTotalSum(context.getTotalSum());
+       return securityService.getCurrentUserId()
+                .flatMap(userId -> {
+                    Order order = new Order();
+                    order.setOrderNumber(generateOrderNumber());
+                    order.setStatus(OrderStatus.NEW);
+                    order.setCreatedAt(LocalDateTime.now());
+                    order.setUpdatedAt(LocalDateTime.now());
+                    order.setTotalSum(context.getTotalSum());
+                    order.setUserId(userId);
 
-        return orderRepository.save(order)
-                .flatMap(savedOrder -> saveOrderItems(savedOrder, context))
-                .flatMap(updatedOrder -> cartItemRepository.deleteByCartId(context.getCartItems().get(0).getCartId())
-                        .thenReturn(updatedOrder));
+                    return orderRepository.save(order)
+                            .flatMap(savedOrder -> saveOrderItems(savedOrder, context))
+                            .flatMap(updatedOrder -> cartItemRepository.deleteByCartId(context.getCartItems().get(0).getCartId())
+                                    .thenReturn(updatedOrder));
+                });
     }
 
     private Mono<Order> saveOrderItems(Order order, OrderTotalContext context) {

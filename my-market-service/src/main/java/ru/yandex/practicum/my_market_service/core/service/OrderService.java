@@ -6,7 +6,7 @@ import ru.yandex.practicum.my_market_service.core.model.OrderDto;
 import ru.yandex.practicum.my_market_service.persistence.entity.Order;
 
 public interface OrderService {
-    Flux<OrderDto> getAllOrders();
+    Flux<OrderDto> getAllOrders(Long userId);
 
     Mono<Order> createOrderFromCart(Long cartId);
 
