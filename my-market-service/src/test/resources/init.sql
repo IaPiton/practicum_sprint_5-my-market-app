@@ -148,7 +148,7 @@ INSERT INTO roles (name, description) VALUES
 -- Для тестов: password = '$2a$10$N.ZOn9J6.qPZc9O9QY2U8eF7XqZ3YxV5wW7rR8tT6uU9iI1oO2pP3S'
 INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(3, 'user', 'user@example.com', '$2a$10$VsvBY7uJhSaI2FRSyfzQOONTWqynla/54KWB6HleoYLQY/dzLAvOi', 'Тестовый Пользователь', '+7 (999) 123-45-67', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:55.849');
 INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(2, 'admin', 'admin@example.com', '$2a$10$VsvBY7uJhSaI2FRSyfzQOONTWqynla/54KWB6HleoYLQY/dzLAvOi', 'Администратор Системы', '+7 (999) 765-43-21', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:51.699');
-INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(1, 'anonimys', 'anonimys@example.com', '$2a$10$VsvBY7uJhSaI2FRSyfzQOONTWqynla/54KWB6HleoYLQY/dzLAvOi', 'Администратор Системы', '+7 (999) 765-43-21', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:51.703');
+INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(1, 'anonimys', 'anonimys@example.com', '', 'Аннонимный пользователь', '+7 (999) 765-43-21', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:51.703');
 
 -- Назначение ролей пользователям
 INSERT INTO user_roles (user_id, role_id) VALUES
@@ -156,8 +156,3 @@ INSERT INTO user_roles (user_id, role_id) VALUES
 (2, 2), -- admin -> ROLE_USER
 (2, 3), -- admin -> ROLE_ADMIN
 (3, 1);
-
-
-COMMENT ON TABLE users IS 'Пользователи системы';
-COMMENT ON TABLE roles IS 'Роли пользователей для авторизации';
-COMMENT ON TABLE user_roles IS 'Связь пользователей с ролями';
