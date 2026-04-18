@@ -13,6 +13,8 @@ import ru.yandex.practicum.my_market_service.core.mapper.OrderMapper;
 import ru.yandex.practicum.my_market_service.core.model.OrderDto;
 import ru.yandex.practicum.my_market_service.core.model.OrderItemContext;
 import ru.yandex.practicum.my_market_service.core.model.OrderTotalContext;
+import ru.yandex.practicum.my_market_service.core.security.OAuth2Service;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_service.persistence.entity.Order;
 import ru.yandex.practicum.my_market_service.persistence.entity.OrderItem;
@@ -39,7 +41,9 @@ public class OrderServiceImpl implements OrderService {
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
     private final OrderMapper orderMapper;
-    private final PaymentApi paymentApi;
+    private final OAuth2Service oAuth2Service;
+    private final PaymentApiFactory paymentApiFactory;
+    private final SecurityService securityService;
 
 
     @Override
@@ -53,9 +57,9 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Cacheable(value = "allOrders", unless = "#result == null")
-    public Flux<OrderDto> getAllOrders() {
-        return orderRepository.findAllOrderByCreatedAtDesc()
+    @Cacheable(value = "allOrders", key = "#userId", unless = "#result == null")
+    public Flux<OrderDto> getAllOrders(Long userId) {
+        return orderRepository.findAllOrderByUserIdByCreatedAtDesc(userId)
                 .collectList()
                 .flatMapMany(orders -> Flux.fromIterable(orders)
                         .flatMap(order -> orderItemRepository.findOrderItemByOrderId(order.getId())
@@ -96,29 +100,37 @@ public class OrderServiceImpl implements OrderService {
         PaymentRequest paymentRequest = new PaymentRequest();
         paymentRequest.setSum(BigDecimal.valueOf(context.getTotalSum()));
 
-        return paymentApi.makePayment(paymentRequest)
+        return oAuth2Service
+                .getTokenValue()
+                .flatMap(accessToken -> {
+                    PaymentApi paymentApi = paymentApiFactory.createWithToken(accessToken);
+                    return paymentApi.makePayment(paymentRequest);
+                })
                 .then(createOrder(context))
                 .onErrorResume(WebClientResponseException.class, ex -> {
                     if (ex.getStatusCode() == HttpStatus.CONFLICT) {
                         return Mono.error(new PaymentFailedException("Недостаточно средств на балансе"));
                     }
                     return Mono.error(new PaymentFailedException("Ошибка при обработке платежа"));
-                })
-                .onErrorResume(Exception.class, ex -> Mono.error(new PaymentFailedException("Ошибка при обработке платежа")));
+                });
     }
 
     private Mono<Order> createOrder(OrderTotalContext context) {
-        Order order = new Order();
-        order.setOrderNumber(generateOrderNumber());
-        order.setStatus(OrderStatus.NEW);
-        order.setCreatedAt(LocalDateTime.now());
-        order.setUpdatedAt(LocalDateTime.now());
-        order.setTotalSum(context.getTotalSum());
+       return securityService.getCurrentUserId()
+                .flatMap(userId -> {
+                    Order order = new Order();
+                    order.setOrderNumber(generateOrderNumber());
+                    order.setStatus(OrderStatus.NEW);
+                    order.setCreatedAt(LocalDateTime.now());
+                    order.setUpdatedAt(LocalDateTime.now());
+                    order.setTotalSum(context.getTotalSum());
+                    order.setUserId(userId);
 
-        return orderRepository.save(order)
-                .flatMap(savedOrder -> saveOrderItems(savedOrder, context))
-                .flatMap(updatedOrder -> cartItemRepository.deleteByCartId(context.getCartItems().get(0).getCartId())
-                        .thenReturn(updatedOrder));
+                    return orderRepository.save(order)
+                            .flatMap(savedOrder -> saveOrderItems(savedOrder, context))
+                            .flatMap(updatedOrder -> cartItemRepository.deleteByCartId(context.getCartItems().getFirst().getCartId())
+                                    .thenReturn(updatedOrder));
+                });
     }
 
     private Mono<Order> saveOrderItems(Order order, OrderTotalContext context) {

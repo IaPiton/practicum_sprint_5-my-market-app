@@ -12,7 +12,6 @@ CREATE TABLE items (
 -- Таблица корзины (сессионная или пользовательская)
 CREATE TABLE cart (
     id BIGSERIAL PRIMARY KEY,
-    session_id VARCHAR(100) UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -86,3 +85,93 @@ INSERT INTO items (title, description, img_path, price) VALUES
 ('Напульники хлопковые', 'Впитывающие напульсники для защиты запястий и удаления пота. Пара, черный цвет.', 'images/wristbands.jpg', 299),
 ('Спортивные носки 3 пары', 'Компрессионные носки для бега и фитнеса. Антибактериальная пропитка.', 'images/socks.jpg', 699),
 ('Массажный ролл', 'МФР-ролл для восстановления мышц после тренировок. Плотность 50D.', 'images/foam-roller.jpg', 1490);
+
+-- Таблица пользователей
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
+    phone VARCHAR(20),
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица ролей
+CREATE TABLE roles (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description VARCHAR(255)
+);
+
+-- Таблица связей пользователей с ролями (многие-ко-многим)
+CREATE TABLE user_roles (
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+);
+
+
+
+
+-- Добавляем связь с пользователем в таблицу корзины
+ALTER TABLE cart ADD COLUMN user_id BIGINT;
+ALTER TABLE cart ADD CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;-- ACTIVE, CONVERTED_TO_ORDER
+
+
+-- Добавляем связь с пользователем в таблицу заказов
+ALTER TABLE orders ADD COLUMN user_id BIGINT;
+ALTER TABLE orders ADD CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+
+
+-- Добавляем индексы для новых полей
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_cart_user_id ON cart(user_id);
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+
+-- =====================================================
+-- ВСТАВКА ДАННЫХ (РОЛИ И ТЕСТОВЫЕ ПОЛЬЗОВАТЕЛИ)
+-- =====================================================
+
+-- Вставка ролей
+INSERT INTO roles (name, description) VALUES
+('ROLE_USER', 'Обычный пользователь'),
+('ROLE_ADMIN', 'Администратор системы'),
+('ROLE_MANAGER', 'Менеджер магазина'),
+('ROLE_ANONYMUS', 'Аннонимный пользователь');
+
+-- Вставка тестовых пользователей (пароль: 'password' захеширован BCrypt)
+INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(3, 'user', 'user@example.com', '$2a$10$VsvBY7uJhSaI2FRSyfzQOONTWqynla/54KWB6HleoYLQY/dzLAvOi', 'Тестовый Пользователь', '+7 (999) 123-45-67', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:55.849');
+INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(2, 'admin', 'admin@example.com', '$2a$10$VsvBY7uJhSaI2FRSyfzQOONTWqynla/54KWB6HleoYLQY/dzLAvOi', 'Администратор Системы', '+7 (999) 765-43-21', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:51.699');
+INSERT INTO public.users (id, username, email, "password", full_name, phone, enabled, created_at, updated_at) VALUES(1, 'anonimys', 'anonimys@example.com', '', 'Аннонимный пользователь', '+7 (999) 765-43-21', true, '2026-04-17 12:00:26.949', '2026-04-17 15:35:51.703');
+
+-- Назначение ролей пользователям
+INSERT INTO user_roles (user_id, role_id) VALUES
+(1, 4), -- user -> ROLE_USER
+(2, 2), -- admin -> ROLE_USER
+(2, 3), -- admin -> ROLE_ADMIN
+(3, 1);
+
+
+COMMENT ON TABLE users IS 'Пользователи системы';
+COMMENT ON TABLE roles IS 'Роли пользователей для авторизации';
+COMMENT ON TABLE user_roles IS 'Связь пользователей с ролями';
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Триггеры для таблиц
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_items_updated_at BEFORE UPDATE ON items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_cart_updated_at BEFORE UPDATE ON cart FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_cart_items_updated_at BEFORE UPDATE ON cart_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

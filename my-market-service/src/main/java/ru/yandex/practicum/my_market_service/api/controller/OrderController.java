@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.handler.PaymentFailedException;
+import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
 import ru.yandex.practicum.my_market_service.core.service.OrderService;
 
@@ -20,10 +21,11 @@ public class OrderController {
 
     private final OrderService orderService;
     private final CartService cartService;
+    private final SecurityService securityService;
 
     @PostMapping("/buy")
     public Mono<String> buy(WebSession session) {
-        return cartService.getCurrentCartId(session.getId())
+        return cartService.getCurrentCartId()
                 .flatMap(orderService::createOrderFromCart)
                 .map(order -> {
                     session.getAttributes().remove("paymentError");
@@ -51,8 +53,9 @@ public class OrderController {
 
     @GetMapping("/orders")
     public Mono<String> getOrders(Model model) {
-        return  orderService.getAllOrders()
-                .collectList()
+        return  securityService.getCurrentUserId()
+                .flatMap(userId -> orderService.getAllOrders(userId)
+                        .collectList())
                 .doOnNext(
                         orders -> model.addAttribute("orders", orders)
                 ).thenReturn("orders");

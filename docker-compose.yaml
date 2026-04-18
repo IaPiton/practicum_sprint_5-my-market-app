@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db-market:
     container_name: db-market
@@ -11,6 +9,7 @@ services:
       - "5433:5432"
     volumes:
       - ./migration/:/docker-entrypoint-initdb.d/
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - market-network
     healthcheck:
@@ -28,6 +27,26 @@ services:
     networks:
       - market-network
 
+  keycloak:
+    container_name: keycloak-service
+    image: quay.io/keycloak/keycloak:21.1.1
+    environment:
+      KC_DB: dev-mem
+      KC_LOG_LEVEL: INFO
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm-master.json:/opt/keycloak/data/import/realm-master.json:ro
+    command:
+      - start-dev
+      - --import-realm
+    ports:
+      - '8082:8080'
+    networks:
+      - market-network
+
   payment-service:
     container_name: payment-service
     build:
@@ -35,8 +54,12 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      - OAUTH2_HOST=http://keycloak-service:8080
     ports:
       - "8081:8081"
+    depends_on:
+      - keycloak
     networks:
       - market-network
 
@@ -52,17 +75,21 @@ services:
       - POSTGRES_PORT=5432
       - PAYMENT_SERVICE_PORT=8081
       - PAYMENT_SERVICE_HOST=payment-service
+      - OAUTH2_HOST=http://keycloak-service:8080
+      - REDIS_HOST=store-market-cache
+      - REDIS_PORT=6379
+      - SPRING_DATA_REDIS_HOST=store-market-cache
+      - SPRING_DATA_REDIS_PORT=6379
     ports:
       - "8080:8080"
     depends_on:
-      store-market-cache:
-        condition: service_started
-      db-market:
-        condition: service_healthy
-      payment-service:
-        condition: service_started
+      - db-market
+      - store-market-cache
+      - keycloak
+      - payment-service
     networks:
       - market-network
+    restart: on-failure
 
 networks:
   market-network:

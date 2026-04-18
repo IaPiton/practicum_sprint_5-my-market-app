@@ -50,7 +50,7 @@ public class RedisConfiguration {
 
     private RedisCacheConfiguration createCollectionCache(GenericJackson2JsonRedisSerializer serializer) {
         return RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.of(1, ChronoUnit.MINUTES))
+                .entryTtl(Duration.of(15, ChronoUnit.SECONDS))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
     }

@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 public interface CartService {
-    Mono<Long> getCurrentCartId(String sessionId);
+    Mono<Long> getCurrentCartId();
 
     Mono<Map<Long, Integer>> getItemCounts(Long cartId);
 

@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.my_market_service.api.handler.UserNotFoundException;
 import ru.yandex.practicum.my_market_service.core.mapper.ItemMapper;
 import ru.yandex.practicum.my_market_service.core.mapper.ItemsGridBuilder;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
@@ -28,7 +29,7 @@ public class ItemServiceImpl implements ItemService {
     private final ItemCacheService itemCacheService;
 
     @Override
-    public Mono<ItemsPageData> getItemsPage(String search, String sort, int pageNumber, int pageSize, String sessionId) {
+    public Mono<ItemsPageData> getItemsPage(String search, String sort, int pageNumber, int pageSize) {
         Pageable pageable = PageRequest.of(pageNumber - 1, pageSize);
         long offset = pageable.getOffset();
         int limit = pageable.getPageSize();
@@ -53,8 +54,10 @@ public class ItemServiceImpl implements ItemService {
                     Long total = tuple.getT2();
                     Page<Item> itemPage = new PageImpl<>(items, pageable, total);
 
-                    return cartService.getCurrentCartId(sessionId)
+                    return cartService.getCurrentCartId()
                             .flatMap(cartService::getItemCounts)
+                            .onErrorResume(UserNotFoundException.class,
+                                    e -> Mono.just(Map.of()))
                             .map(cartItemCounts -> {
                                 List<ItemDto> itemsWithCount = itemMapper.toDtoList(
                                         itemPage.getContent(),
@@ -77,8 +80,8 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
-    public Mono<ItemDto> getItemById(Long itemId, String sessionId) {
-        Mono<Map<Long, Integer>> cartItemCountsMono = cartService.getCurrentCartId(sessionId)
+    public Mono<ItemDto> getItemById(Long itemId) {
+        Mono<Map<Long, Integer>> cartItemCountsMono = cartService.getCurrentCartId()
                 .flatMap(cartService::getItemCounts);
         Mono<Item> itemMono = itemCacheService.getItemEntityById(itemId);
         return Mono.zip(cartItemCountsMono, itemMono)
@@ -93,8 +96,8 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public Mono<String> updateCartItemAndGetRedirectUrl(Long itemId, String search, String sort,
-                                                        int pageNumber, int pageSize, String action, String sessionId) {
-        return Mono.zip(cartService.getCurrentCartId(sessionId), itemCacheService.getItemEntityById(itemId))
+                                                        int pageNumber, int pageSize, String action) {
+        return Mono.zip(cartService.getCurrentCartId(), itemCacheService.getItemEntityById(itemId))
                 .flatMap(tuple ->
                 {
                     Long cartId = tuple.getT1();
@@ -123,8 +126,8 @@ public class ItemServiceImpl implements ItemService {
 
 
     @Override
-    public Mono<ItemDto> updateItemCountAndGetItem(Long itemId, String action, String sessionId) {
-        return Mono.zip(cartService.getCurrentCartId(sessionId), itemCacheService.getItemEntityById(itemId))
+    public Mono<ItemDto> updateItemCountAndGetItem(Long itemId, String action) {
+        return Mono.zip(cartService.getCurrentCartId(), itemCacheService.getItemEntityById(itemId))
                 .flatMap(tuple -> {
                     Long cartId = tuple.getT1();
                     Item item = tuple.getT2();

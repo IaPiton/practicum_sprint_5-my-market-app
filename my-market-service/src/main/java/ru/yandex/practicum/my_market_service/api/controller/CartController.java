@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.api.model.ItemUpdateRequest;
 import ru.yandex.practicum.my_market_service.core.service.CartService;
@@ -21,11 +20,10 @@ public class CartController {
 
     @GetMapping("/items")
     public Mono<String> getCartItems(@RequestParam(value = "paymentError", required = false) String paymentError,
-                                     Model model,
-                                     WebSession session) {
+                                     Model model) {
         return cartService.getBalance()
                 .doOnNext(balance -> model.addAttribute("balance", balance))
-                .then(cartService.getCurrentCartId(session.getId())
+                .then(cartService.getCurrentCartId()
                         .flatMap(cartId ->
                                 cartService.getCartItemsWithDetails(cartId)
                                         .collectList()
@@ -41,12 +39,11 @@ public class CartController {
 
     @PostMapping("/items")
     public Mono<String> updateCartItem(
-            WebSession session,
             @ModelAttribute ItemUpdateRequest request,
             Model model) {
         return cartService.getBalance()
                 .doOnNext(balance -> model.addAttribute("balance", balance))
-                .then(cartService.getCurrentCartId(session.getId())
+                .then(cartService.getCurrentCartId())
                         .flatMap(cartId ->
                                 itemCacheService.getItemEntityById(request.getId())
                                         .flatMap(item ->
@@ -58,7 +55,7 @@ public class CartController {
                             model.addAttribute("items", tuple.getT1());
                             model.addAttribute("total", tuple.getT2());
                         })
-                        .thenReturn("cart"));
+                        .thenReturn("cart");
 
     }
 }

@@ -24,6 +24,9 @@ public class Order {
     @Id
     private Long id;
 
+    @Column(value = "user_id")
+    private Long userId;
+
     @Column(value = "order_number")
     private String orderNumber;
 

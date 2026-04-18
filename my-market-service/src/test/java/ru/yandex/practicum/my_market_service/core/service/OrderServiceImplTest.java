@@ -17,7 +17,6 @@ import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.entity.Order;
 import ru.yandex.practicum.my_market_service.persistence.model.OrderStatus;
 import ru.yandex.practicum.my_market_service.persistence.repository.*;
-import yandex.practicum.market.client.api.PaymentApi;
 
 import java.util.Objects;
 
@@ -50,15 +49,13 @@ class OrderServiceImplTest extends TestcontainersTest {
     private CartRepository cartRepository;
 
     @Autowired
-    private PaymentApi paymentApi;
-
-    @Autowired
     private CacheManager cacheManager;
 
     private Cart testCart;
     private Item testItem1;
     private Item testItem2;
     private Item testItem3;
+    private final Long userId = 3L;
 
     @BeforeEach
     void setUp() {
@@ -71,10 +68,10 @@ class OrderServiceImplTest extends TestcontainersTest {
         cartRepository.deleteAll().block();
         itemRepository.deleteAll().block();
 
-        String testSessionId = "test-session-" + System.currentTimeMillis();
+
 
         testCart = new Cart();
-        testCart.setSessionId(testSessionId);
+        testCart.setUserId(userId);
         testCart = cartRepository.save(testCart).block();
 
         testItem1 = new Item();
@@ -233,7 +230,7 @@ class OrderServiceImplTest extends TestcontainersTest {
         @Test
         @DisplayName("Должен вернуть пустой список, если заказов нет")
         void shouldReturnEmptyListWhenNoOrders() {
-            StepVerifier.create(orderService.getAllOrders().collectList())
+            StepVerifier.create(orderService.getAllOrders(userId).collectList())
                     .assertNext(orders -> {
                         assertThat(orders).isNotNull();
                         assertThat(orders).isEmpty();
@@ -251,19 +248,19 @@ class OrderServiceImplTest extends TestcontainersTest {
             addItemToCart(testCart.getId(), testItem3.getId(), 3).block();
             orderService.createOrderFromCart(testCart.getId()).block();
 
-            StepVerifier.create(orderService.getAllOrders().collectList())
+            StepVerifier.create(orderService.getAllOrders(userId).collectList())
                     .assertNext(orders -> assertThat(orders).hasSize(2))
                     .verifyComplete();
 
             assertThat(cacheManager.getCache("allOrders")).isNotNull();
 
-            StepVerifier.create(orderService.getAllOrders().collectList())
+            StepVerifier.create(orderService.getAllOrders(userId).collectList())
                     .assertNext(orders -> assertThat(orders).hasSize(2))
                     .verifyComplete();
 
             Objects.requireNonNull(cacheManager.getCache("allOrders")).clear();
 
-            StepVerifier.create(orderService.getAllOrders().collectList())
+            StepVerifier.create(orderService.getAllOrders(userId).collectList())
                     .assertNext(orders -> assertThat(orders).hasSize(2))
                     .verifyComplete();
         }
@@ -278,7 +275,7 @@ class OrderServiceImplTest extends TestcontainersTest {
             addItemToCart(testCart.getId(), testItem3.getId(), 3).block();
             Order secondOrder = orderService.createOrderFromCart(testCart.getId()).block();
 
-            StepVerifier.create(orderService.getAllOrders().collectList())
+            StepVerifier.create(orderService.getAllOrders(userId).collectList())
                     .assertNext(orders -> {
                         assertThat(orders).hasSize(2);
 
