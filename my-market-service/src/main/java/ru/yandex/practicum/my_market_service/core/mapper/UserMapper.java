@@ -2,9 +2,6 @@ package ru.yandex.practicum.my_market_service.core.mapper;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
-import ru.yandex.practicum.my_market_service.persistence.entity.CartItem;
-import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.entity.User;
 import ru.yandex.practicum.my_market_service.persistence.model.UserDto;
 

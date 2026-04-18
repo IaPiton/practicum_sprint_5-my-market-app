@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.my_market_service.api.handler.UserNotFoundException;
 import ru.yandex.practicum.my_market_service.core.mapper.ItemMapper;
 import ru.yandex.practicum.my_market_service.core.mapper.ItemsGridBuilder;
 import ru.yandex.practicum.my_market_service.core.model.ItemDto;
@@ -55,6 +56,8 @@ public class ItemServiceImpl implements ItemService {
 
                     return cartService.getCurrentCartId()
                             .flatMap(cartService::getItemCounts)
+                            .onErrorResume(UserNotFoundException.class,
+                                    e -> Mono.just(Map.of()))
                             .map(cartItemCounts -> {
                                 List<ItemDto> itemsWithCount = itemMapper.toDtoList(
                                         itemPage.getContent(),

@@ -5,6 +5,7 @@ import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import ru.yandex.practicum.my_market_service.api.handler.UserNotFoundException;
 import ru.yandex.practicum.my_market_service.persistence.model.UserDto;
 
 
@@ -27,6 +28,6 @@ public class SecurityService {
                 .cast(String.class)
                 .flatMap(userService::findByName)
                 .map(UserDto::getId)
-                .defaultIfEmpty(1L);
+                .switchIfEmpty(Mono.error(new UserNotFoundException("Пользователь не найден")));
     }
 }

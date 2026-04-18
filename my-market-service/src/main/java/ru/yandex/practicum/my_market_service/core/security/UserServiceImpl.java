@@ -1,7 +1,6 @@
 package ru.yandex.practicum.my_market_service.core.security;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.core.mapper.UserMapper;
