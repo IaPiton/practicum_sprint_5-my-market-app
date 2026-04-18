@@ -12,13 +12,11 @@ import ru.yandex.practicum.my_market_service.api.handler.OrderItemNotFoundExcept
 import ru.yandex.practicum.my_market_service.configuration.TestcontainersTest;
 import ru.yandex.practicum.my_market_service.core.model.OrderDto;
 import ru.yandex.practicum.my_market_service.core.model.OrderItemDto;
-import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.entity.Order;
 import ru.yandex.practicum.my_market_service.persistence.model.OrderStatus;
 import ru.yandex.practicum.my_market_service.persistence.repository.*;
-import yandex.practicum.market.client.api.PaymentApi;
 
 import java.util.Objects;
 
@@ -49,12 +47,6 @@ class OrderServiceImplTest extends TestcontainersTest {
 
     @Autowired
     private CartRepository cartRepository;
-
-    @Autowired
-    private PaymentApi paymentApi;
-
-    @Autowired
-    private SecurityService securityService;
 
     @Autowired
     private CacheManager cacheManager;

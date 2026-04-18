@@ -13,6 +13,7 @@ import ru.yandex.practicum.my_market_service.core.mapper.OrderMapper;
 import ru.yandex.practicum.my_market_service.core.model.OrderDto;
 import ru.yandex.practicum.my_market_service.core.model.OrderItemContext;
 import ru.yandex.practicum.my_market_service.core.model.OrderTotalContext;
+import ru.yandex.practicum.my_market_service.core.security.OAuth2Service;
 import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.CartItem;
 import ru.yandex.practicum.my_market_service.persistence.entity.Order;
@@ -40,7 +41,8 @@ public class OrderServiceImpl implements OrderService {
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
     private final OrderMapper orderMapper;
-    private final PaymentApi paymentApi;
+    private final OAuth2Service oAuth2Service;
+    private final PaymentApiFactory paymentApiFactory;
     private final SecurityService securityService;
 
 
@@ -98,15 +100,19 @@ public class OrderServiceImpl implements OrderService {
         PaymentRequest paymentRequest = new PaymentRequest();
         paymentRequest.setSum(BigDecimal.valueOf(context.getTotalSum()));
 
-        return paymentApi.makePayment(paymentRequest)
+        return oAuth2Service
+                .getTokenValue()
+                .flatMap(accessToken -> {
+                    PaymentApi paymentApi = paymentApiFactory.createWithToken(accessToken);
+                    return paymentApi.makePayment(paymentRequest);
+                })
                 .then(createOrder(context))
                 .onErrorResume(WebClientResponseException.class, ex -> {
                     if (ex.getStatusCode() == HttpStatus.CONFLICT) {
                         return Mono.error(new PaymentFailedException("Недостаточно средств на балансе"));
                     }
                     return Mono.error(new PaymentFailedException("Ошибка при обработке платежа"));
-                })
-                .onErrorResume(Exception.class, ex -> Mono.error(new PaymentFailedException("Ошибка при обработке платежа")));
+                });
     }
 
     private Mono<Order> createOrder(OrderTotalContext context) {
@@ -122,7 +128,7 @@ public class OrderServiceImpl implements OrderService {
 
                     return orderRepository.save(order)
                             .flatMap(savedOrder -> saveOrderItems(savedOrder, context))
-                            .flatMap(updatedOrder -> cartItemRepository.deleteByCartId(context.getCartItems().get(0).getCartId())
+                            .flatMap(updatedOrder -> cartItemRepository.deleteByCartId(context.getCartItems().getFirst().getCartId())
                                     .thenReturn(updatedOrder));
                 });
     }

@@ -21,6 +21,7 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.my_market_service.core.security.OAuth2Service;
 import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.core.security.UserService;
+import ru.yandex.practicum.my_market_service.core.service.PaymentApiFactory;
 import ru.yandex.practicum.my_market_service.persistence.model.UserDto;
 import yandex.practicum.market.client.api.PaymentApi;
 import yandex.practicum.market.client.model.BalanceResponse;
@@ -51,19 +52,22 @@ public class TestConfiguration {
 
     @Bean
     @Primary
-    public PaymentApi mockPaymentApi(ReactiveClientRegistrationRepository clientRegistrationRepository,
-                                     ServerOAuth2AuthorizedClientRepository authorizedClientRepository) {
-        PaymentApi mock = Mockito.mock(PaymentApi.class);
+    public PaymentApiFactory paymentApiFactory() {
+        PaymentApi mockPaymentApi = Mockito.mock(PaymentApi.class);
 
-        when(mock.makePayment(any(PaymentRequest.class)))
+        when(mockPaymentApi.makePayment(any(PaymentRequest.class)))
                 .thenReturn(Mono.empty());
 
         BalanceResponse balanceResponse = new BalanceResponse();
         balanceResponse.setBalance(BigDecimal.valueOf(1000));
-
-        when(mock.getBalance())
+        when(mockPaymentApi.getBalance())
                 .thenReturn(Mono.just(balanceResponse));
-        return mock;
+
+        PaymentApiFactory mockFactory = Mockito.mock(PaymentApiFactory.class);
+        when(mockFactory.createWithToken(any(String.class)))
+                .thenReturn(mockPaymentApi);
+
+        return mockFactory;
     }
 
     @Bean

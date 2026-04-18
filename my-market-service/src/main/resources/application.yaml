@@ -18,7 +18,7 @@ spring:
             provider: keycloak
             authorizationGrantType: client_credentials
             client-id: ${OAUTH2_CLIENT:market-client-api}
-            client-secret: ${OAUTH2_SECRET:wz7Y0i5otfbsXtSzke3cVu8aKrCROrKg}
+            client-secret: ${OAUTH2_SECRET}
             scope: profile
             clientAuthenticationMethod: client_secret_post
         provider:

@@ -3,23 +3,18 @@ package ru.yandex.practicum.my_market_service.core.service;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import ru.yandex.practicum.my_market_service.configuration.TestcontainersTest;
 import ru.yandex.practicum.my_market_service.core.model.CartItemDto;
-import ru.yandex.practicum.my_market_service.core.security.OAuth2Service;
-import ru.yandex.practicum.my_market_service.core.security.SecurityService;
 import ru.yandex.practicum.my_market_service.persistence.entity.Cart;
 import ru.yandex.practicum.my_market_service.persistence.entity.Item;
 import ru.yandex.practicum.my_market_service.persistence.repository.CartItemRepository;
 import ru.yandex.practicum.my_market_service.persistence.repository.CartRepository;
 import ru.yandex.practicum.my_market_service.persistence.repository.ItemRepository;
 
-import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,12 +31,6 @@ class CartServiceImplTest extends TestcontainersTest {
 
     @Autowired
     private CartItemRepository cartItemRepository;
-
-    @Autowired
-    private SecurityService securityService;
-
-    @Autowired
-    private OAuth2Service oAuth2Service;
 
     @Autowired
     private ItemRepository itemRepository;
@@ -115,12 +104,9 @@ class CartServiceImplTest extends TestcontainersTest {
                                     cartRepository.findById(cartId)
                                             .map(savedCart -> new Object() {
                                                 final Long id = cartId;
-                                                final Cart cart = savedCart;
                                             })
                             )
-            ).assertNext(pair -> {
-                assertThat(pair.id).isNotNull();
-            }).verifyComplete();
+            ).assertNext(pair -> assertThat(pair.id).isNotNull()).verifyComplete();
         }
 
         @Test

@@ -34,7 +34,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final CartMapper cartMapper;
     private final CartRepository cartRepository;
-    private final PaymentApi paymentApi;
+    private final PaymentApiFactory paymentApiFactory;
     private final SecurityService securityService;
     private final OAuth2Service oAuth2Service;
 
@@ -136,7 +136,7 @@ public class CartServiceImpl implements CartService {
         return oAuth2Service
                 .getTokenValue()
                 .flatMap(accessToken -> {
-                    paymentApi.getApiClient().addDefaultHeader("Authorization", "Bearer " + accessToken);
+                    PaymentApi paymentApi = paymentApiFactory.createWithToken(accessToken);
                     return paymentApi.getBalance();
                 })
                 .map(BalanceResponse::getBalance)
